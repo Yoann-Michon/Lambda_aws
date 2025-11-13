@@ -9,13 +9,9 @@ const Dashboard = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const user = api.auth.getCurrentUser();
-    if (!user) {
-      navigate('/', { replace: true });
-      return;
-    }
-    loadPosts();
-  }, [navigate]);
+  loadPosts();
+}, []);
+
 
   const loadPosts = async () => {
     try {
