@@ -1,0 +1,156 @@
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
+
+const PostDetail = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { currentUser, isAdmin } = useAuth();
+  const [post, setPost] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    loadPost();
+  }, [id]);
+
+  const loadPost = async () => {
+    try {
+      setLoading(true);
+      const data = await api.posts.getPost(id);
+      setPost(data.post);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cet article ?')) {
+      return;
+    }
+
+    try {
+      await api.posts.deletePost(id);
+      navigate('/dashboard');
+    } catch (err) {
+      alert('Erreur lors de la suppression : ' + err.message);
+    }
+  };
+
+  const canEdit = currentUser && (
+    currentUser.email === post?.authorEmail || isAdmin()
+  );
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (error || !post) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+          {error || 'Article non trouvé'}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <article className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8">
+        <h1 className="text-4xl font-bold mb-4 text-gray-900 dark:text-white">
+          {post.title}
+        </h1>
+
+        <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400 mb-6">
+          <span>Par {post.authorName}</span>
+          <span>•</span>
+          <span>{new Date(post.createdAt).toLocaleDateString('fr-FR', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          })}</span>
+          {post.views > 0 && (
+            <>
+              <span>•</span>
+              <span>{post.views} vues</span>
+            </>
+          )}
+        </div>
+
+        {post.tags && post.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-6">
+            {post.tags.map((tag, index) => (
+              <span
+                key={index}
+                className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-sm rounded-full"
+              >
+                #{tag}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {post.status === 'draft' && (
+          <div className="mb-6 p-3 bg-yellow-100 border border-yellow-400 text-yellow-800 rounded">
+            Cet article est en brouillon
+          </div>
+        )}
+
+        {canEdit && (
+          <div className="flex gap-4 mb-6">
+            <Link
+              to={`/editor/${post.postId}`}
+              className="text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Modifier
+            </Link>
+            <button
+              onClick={handleDelete}
+              className="text-red-600 hover:text-red-800 font-medium"
+            >
+              Supprimer
+            </button>
+          </div>
+        )}
+
+        <div className="prose dark:prose-invert max-w-none">
+          <div className="whitespace-pre-wrap text-gray-800 dark:text-gray-200 leading-relaxed">
+            {post.content}
+          </div>
+        </div>
+
+        {post.mediaUrls && post.mediaUrls.length > 0 && (
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {post.mediaUrls.map((url, index) => (
+              <img
+                key={index}
+                src={url}
+                alt={`Media ${index + 1}`}
+                className="w-full rounded-lg"
+              />
+            ))}
+          </div>
+        )}
+      </article>
+
+      <div className="mt-6">
+        <button
+          onClick={() => navigate(-1)}
+          className="text-blue-600 hover:text-blue-800"
+        >
+          ← Retour
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default PostDetail;

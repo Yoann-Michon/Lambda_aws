@@ -1,0 +1,320 @@
+org: 5lamb
+service: blogify-backend
+
+package:
+  patterns:
+    - '!node_modules/**'
+    - 'node_modules/aws-sdk/**'
+    - 'node_modules/uuid/**'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: eu-west-1
+  stage: ${opt:stage, 'dev'}
+  
+  # Variables d'environnement pour toutes les fonctions
+  environment:
+    POSTS_TABLE: ${self:service}-posts-${self:provider.stage}
+    MEDIA_BUCKET: ${self:service}-media-${self:provider.stage}
+    USER_POOL_ID: !Ref CognitoUserPool
+    USER_POOL_CLIENT_ID: !Ref CognitoUserPoolClient
+  
+  # Permissions IAM pour les Lambda functions
+  iam:
+    role:
+      statements:
+        # Permissions DynamoDB
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:Scan
+            - dynamodb:Query
+          Resource:
+            - !GetAtt PostsTable.Arn
+        
+        # Permissions S3
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:DeleteObject
+          Resource:
+            - !GetAtt MediaBucket.Arn
+            - !Join ['', [!GetAtt MediaBucket.Arn, '/*']]
+        
+        # Permissions Cognito
+        - Effect: Allow
+          Action:
+            - cognito-idp:AdminCreateUser
+            - cognito-idp:AdminSetUserPassword
+            - cognito-idp:AdminAddUserToGroup
+            - cognito-idp:AdminInitiateAuth
+            - cognito-idp:AdminGetUser
+            - cognito-idp:AdminListGroupsForUser
+            - cognito-idp:AdminUserGlobalSignOut
+          Resource:
+            - !GetAtt CognitoUserPool.Arn
+
+functions:
+  # ============= AUTH FUNCTIONS =============
+  signup:
+    handler: functions/auth/signup.handler
+    events:
+      - http:
+          path: auth/signup
+          method: post
+          cors: true
+
+  login:
+    handler: functions/auth/login.handler
+    events:
+      - http:
+          path: auth/login
+          method: post
+          cors: true
+
+  logout:
+    handler: functions/auth/logout.handler
+    events:
+      - http:
+          path: auth/logout
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId: !Ref ApiGatewayAuthorizer
+
+  # ============= POST FUNCTIONS =============
+  createPost:
+    handler: functions/posts/createPost.handler
+    events:
+      - http:
+          path: posts
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId: !Ref ApiGatewayAuthorizer
+
+  getPost:
+    handler: functions/posts/getPost.handler
+    events:
+      - http:
+          path: posts/{id}
+          method: get
+          cors: true
+
+  getAllPosts:
+    handler: functions/posts/getAllPosts.handler
+    events:
+      - http:
+          path: posts
+          method: get
+          cors: true
+
+  updatePost:
+    handler: functions/posts/updatePost.handler
+    events:
+      - http:
+          path: posts/{id}
+          method: put
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId: !Ref ApiGatewayAuthorizer
+
+  deletePost:
+    handler: functions/posts/deletePost.handler
+    events:
+      - http:
+          path: posts/{id}
+          method: delete
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId: !Ref ApiGatewayAuthorizer
+
+  # ============= MEDIA FUNCTIONS =============
+  uploadMedia:
+    handler: functions/media/uploadMedia.handler
+    events:
+      - http:
+          path: media/upload
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId: !Ref ApiGatewayAuthorizer
+
+  getMediaUrl:
+    handler: functions/media/getMediaUrl.handler
+    events:
+      - http:
+          path: media/{key}
+          method: get
+          cors: true
+
+# ============= ADMIN FUNCTIONS =============
+  getUsers:
+    handler: functions/admin/getUsers.handler
+    events:
+      - http:
+          path: admin/users
+          method: get
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId: !Ref ApiGatewayAuthorizer
+
+  manageUser:
+    handler: functions/admin/manageUser.handler
+    events:
+      - http:
+          path: admin/users/{email}
+          method: put
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId: !Ref ApiGatewayAuthorizer
+            
+# ============= RESOURCES =============
+resources:
+  Resources:
+    # DynamoDB Table pour les Posts
+    PostsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.POSTS_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: postId
+            AttributeType: S
+          - AttributeName: createdAt
+            AttributeType: N
+        KeySchema:
+          - AttributeName: postId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: CreatedAtIndex
+            KeySchema:
+              - AttributeName: createdAt
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+
+    # S3 Bucket pour les médias
+    MediaBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:provider.environment.MEDIA_BUCKET}
+        CorsConfiguration:
+          CorsRules:
+            - AllowedOrigins:
+                - '*'
+              AllowedMethods:
+                - GET
+                - PUT
+                - POST
+                - DELETE
+              AllowedHeaders:
+                - '*'
+              MaxAge: 3000
+
+    # Cognito User Pool
+    CognitoUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: ${self:service}-user-pool-${self:provider.stage}
+        UsernameAttributes:
+          - email
+        AutoVerifiedAttributes:
+          - email
+        Schema:
+          - Name: email
+            Required: true
+            Mutable: false
+          - Name: name
+            Required: true
+            Mutable: true
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 8
+            RequireUppercase: true
+            RequireLowercase: true
+            RequireNumbers: true
+            RequireSymbols: false
+
+    # Cognito User Pool Client
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: ${self:service}-client-${self:provider.stage}
+        UserPoolId: !Ref CognitoUserPool
+        GenerateSecret: false
+        ExplicitAuthFlows:
+          - ALLOW_USER_PASSWORD_AUTH
+          - ALLOW_REFRESH_TOKEN_AUTH
+          - ALLOW_ADMIN_USER_PASSWORD_AUTH
+        PreventUserExistenceErrors: ENABLED
+        AccessTokenValidity: 60
+        IdTokenValidity: 60
+        RefreshTokenValidity: 30
+        TokenValidityUnits:
+          AccessToken: minutes
+          IdToken: minutes
+          RefreshToken: days
+
+    # Cognito Groups
+    CognitoAdminGroup:
+      Type: AWS::Cognito::UserPoolGroup
+      Properties:
+        GroupName: admin
+        UserPoolId: !Ref CognitoUserPool
+        Description: Administrators with full access
+
+    CognitoEditorGroup:
+      Type: AWS::Cognito::UserPoolGroup
+      Properties:
+        GroupName: editor
+        UserPoolId: !Ref CognitoUserPool
+        Description: Editors who can create and edit posts
+
+    CognitoGuestGroup:
+      Type: AWS::Cognito::UserPoolGroup
+      Properties:
+        GroupName: guest
+        UserPoolId: !Ref CognitoUserPool
+        Description: Guest authors with limited access
+
+    # API Gateway Authorizer
+    ApiGatewayAuthorizer:
+      Type: AWS::ApiGateway::Authorizer
+      Properties:
+        Name: CognitoAuthorizer
+        Type: COGNITO_USER_POOLS
+        IdentitySource: method.request.header.Authorization
+        RestApiId: !Ref ApiGatewayRestApi
+        ProviderARNs:
+          - !GetAtt CognitoUserPool.Arn
+
+  # Outputs utiles
+  Outputs:
+    UserPoolId:
+      Value: !Ref CognitoUserPool
+      Description: Cognito User Pool ID
+    
+    UserPoolClientId:
+      Value: !Ref CognitoUserPoolClient
+      Description: Cognito User Pool Client ID
+    
+    MediaBucketName:
+      Value: !Ref MediaBucket
+      Description: S3 Bucket for media files
+    
+    PostsTableName:
+      Value: !Ref PostsTable
+      Description: DynamoDB table for posts
