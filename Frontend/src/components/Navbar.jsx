@@ -2,12 +2,17 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const Navbar = () => {
-  const { currentUser, logout, isAdmin } = useAuth();
+  const { currentUser, logout, isAdmin, canCreatePosts } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Erreur lors de la déconnexion:', error);
+      navigate('/login');
+    }
   };
 
   return (
@@ -35,6 +40,15 @@ const Navbar = () => {
                   Tableau de bord
                 </Link>
                 
+                {canCreatePosts() && (
+                  <Link
+                    to="/editor"
+                    className="text-gray-700 dark:text-gray-300 hover:text-blue-600 transition-colors"
+                  >
+                    Nouvel article
+                  </Link>
+                )}
+                
                 {isAdmin() && (
                   <Link
                     to="/users"
@@ -45,9 +59,14 @@ const Navbar = () => {
                 )}
 
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    {currentUser.name}
-                  </span>
+                  <div className="text-sm">
+                    <span className="text-gray-600 dark:text-gray-400 block">
+                      {currentUser.name}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-500">
+                      {currentUser.groups?.join(', ')}
+                    </span>
+                  </div>
                   <button
                     onClick={handleLogout}
                     className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"

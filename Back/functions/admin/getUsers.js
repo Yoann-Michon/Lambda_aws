@@ -16,8 +16,8 @@ exports.handler = async (event) => {
 
   try {
     // Récupérer les informations de l'utilisateur
-    const userGroups = event.requestContext.authorizer.claims['cognito:groups'] || '';
-    const userEmail = event.requestContext.authorizer.claims.email;
+    const userGroups = event.requestContext?.authorizer?.claims['cognito:groups'] || '';
+    const userEmail = event.requestContext?.authorizer?.claims?.email;
 
     // Vérifier que l'utilisateur est admin
     if (!userGroups.includes('admin')) {
@@ -25,6 +25,8 @@ exports.handler = async (event) => {
         statusCode: 403,
         headers: {
           'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+          'Access-Control-Allow-Methods': 'GET,OPTIONS',
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -37,13 +39,13 @@ exports.handler = async (event) => {
 
     // Récupérer les paramètres de requête
     const queryParams = event.queryStringParameters || {};
-    const limit = parseInt(queryParams.limit) || 60; // Maximum 60 par défaut
+    const limit = parseInt(queryParams.limit) || 60;
     const paginationToken = queryParams.paginationToken || null;
 
     // Lister les utilisateurs du User Pool
     const listUsersCommand = new ListUsersCommand({
       UserPoolId: process.env.USER_POOL_ID,
-      Limit: Math.min(limit, 60), // AWS limite à 60 max
+      Limit: Math.min(limit, 60),
       ...(paginationToken && { PaginationToken: paginationToken })
     });
 
@@ -108,6 +110,8 @@ exports.handler = async (event) => {
       statusCode: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+        'Access-Control-Allow-Methods': 'GET,OPTIONS',
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -125,6 +129,8 @@ exports.handler = async (event) => {
       statusCode: 500,
       headers: {
         'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+        'Access-Control-Allow-Methods': 'GET,OPTIONS',
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({

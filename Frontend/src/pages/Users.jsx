@@ -1,166 +1,166 @@
-import React, { useState, useEffect } from 'react';
-import { useAppContext } from '../context/BlogContext';
+import { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import api from '../services/api';
 
 const Users = () => {
-  const { currentUser, users, createUser, updateUser, deleteUser } = useAppContext();
+  const { currentUser, isAdmin } = useAuth();
   const navigate = useNavigate();
-  const [editingUserId, setEditingUserId] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (!currentUser) {
       navigate('/login');
-    } else if (currentUser.role !== 'Admin') {
-      navigate('/dashboard');
-    }
-  }, [currentUser, navigate]);
-
-  const handleAddSubmit = (e) => {
-    e.preventDefault();
-    const form = e.target;
-    const username = form.username.value;
-    const password = form.password.value;
-    const role = form.role.value;
-    const success = createUser(username, password, role);
-    if (!success) {
-      setError("Ce nom d'utilisateur est déjà utilisé.");
+    } else if (!isAdmin()) {
+      navigate('/unauthorized');
     } else {
-      setError('');
-      form.reset();
+      loadUsers();
+    }
+  }, [currentUser, navigate, isAdmin]);
+
+  const loadUsers = async () => {
+    try {
+      setLoading(true);
+      const data = await api.admin.getAllUsers();
+      setUsers(data.users);
+    } catch (err) {
+      setError('Erreur lors du chargement des utilisateurs: ' + err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleEditClick = (user) => {
-    setError('');
-    setEditingUserId(user.id);
-  };
-
-  const handleEditSubmit = (e) => {
-    e.preventDefault();
-    if (editingUserId == null) return;
-    const form = e.target;
-    const username = form.username.value;
-    const password = form.password.value;
-    const role = form.role.value;
-    const success = updateUser(editingUserId, username, password, role);
-    if (!success) {
-      setError("Ce nom d'utilisateur est déjà utilisé.");
-    } else {
-      setError('');
-      setEditingUserId(null);
+  const handleAddToGroup = async (email, groupName) => {
+    try {
+      await api.admin.addUserToGroup(email, groupName);
+      loadUsers(); // Recharger la liste
+    } catch (err) {
+      alert('Erreur: ' + err.message);
     }
   };
 
-  const handleCancel = () => {
-    setError('');
-    setEditingUserId(null);
+  const handleRemoveFromGroup = async (email, groupName) => {
+    try {
+      await api.admin.removeUserFromGroup(email, groupName);
+      loadUsers(); // Recharger la liste
+    } catch (err) {
+      alert('Erreur: ' + err.message);
+    }
   };
 
-  const handleDeleteUser = (id) => {
-    if (window.confirm('Supprimer cet utilisateur ?')) {
-      if (editingUserId === id) {
-        setEditingUserId(null);
+  const handleDeleteUser = async (email) => {
+    if (window.confirm(`Supprimer l'utilisateur ${email} ?`)) {
+      try {
+        await api.admin.deleteUser(email);
+        loadUsers(); // Recharger la liste
+      } catch (err) {
+        alert('Erreur: ' + err.message);
       }
-      deleteUser(id);
     }
   };
 
-  const roleNames = { 'Author': 'Auteur', 'Editor': 'Éditeur', 'Admin': 'Administrateur' };
-
-  const editingUser = editingUserId ? users.find(u => u.id === editingUserId) : null;
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="mt-8">
+    <div className="container mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold mb-6">Gestion des utilisateurs</h1>
-      <table className="w-full text-left border-collapse mb-8">
-        <thead>
-          <tr>
-            <th className="border-b pb-2">Nom d'utilisateur</th>
-            <th className="border-b pb-2">Rôle</th>
-            <th className="border-b pb-2">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map(user => (
-            <tr key={user.id}>
-              <td className="py-1">{user.username}</td>
-              <td className="py-1">{roleNames[user.role] || user.role}</td>
-              <td className="py-1">
-                <button onClick={() => handleEditClick(user)} className="text-blue-500 hover:underline mr-4">Modifier</button>
-                <button onClick={() => handleDeleteUser(user.id)} className="text-red-500 hover:underline">Supprimer</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {editingUserId ? (
-        <div className="max-w-sm">
-          <h2 className="text-xl font-bold mb-4">Modifier l'utilisateur</h2>
-          {error && <p className="text-red-500 mb-4">{error}</p>}
-          {editingUser && (
-            <form onSubmit={handleEditSubmit}>
-              <input
-                type="text"
-                name="username"
-                defaultValue={editingUser.username}
-                placeholder="Nom d'utilisateur"
-                required
-                className="w-full p-2 mb-4 border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-              />
-              <input
-                type="password"
-                name="password"
-                placeholder="Nouveau mot de passe"
-                className="w-full p-2 mb-4 border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-              />
-              <select
-                name="role"
-                defaultValue={editingUser.role}
-                className="w-full p-2 mb-4 border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-              >
-                <option value="Author">Auteur</option>
-                <option value="Editor">Éditeur</option>
-                <option value="Admin">Administrateur</option>
-              </select>
-              <div>
-                <button type="submit" className="bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 mr-4">Enregistrer</button>
-                <button type="button" onClick={handleCancel} className="bg-gray-500 text-white py-2 px-4 rounded hover:bg-gray-600">Annuler</button>
-              </div>
-            </form>
-          )}
-        </div>
-      ) : (
-        <div className="max-w-sm">
-          <h2 className="text-xl font-bold mb-4">Créer un nouvel utilisateur</h2>
-          {error && <p className="text-red-500 mb-4">{error}</p>}
-          <form onSubmit={handleAddSubmit}>
-            <input
-              type="text"
-              name="username"
-              placeholder="Nom d'utilisateur"
-              required
-              className="w-full p-2 mb-4 border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-            />
-            <input
-              type="password"
-              name="password"
-              placeholder="Mot de passe"
-              required
-              className="w-full p-2 mb-4 border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-            />
-            <select
-              name="role"
-              className="w-full p-2 mb-4 border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-            >
-              <option value="Author">Auteur</option>
-              <option value="Editor">Éditeur</option>
-              <option value="Admin">Administrateur</option>
-            </select>
-            <button type="submit" className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700">Ajouter</button>
-          </form>
+
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
         </div>
       )}
+
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                Nom
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                Email
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                Groupes
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                Statut
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+            {users.map((user) => (
+              <tr key={user.email}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                  {user.name}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                  {user.email}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex flex-wrap gap-1">
+                    {user.groups.map((group) => (
+                      <span
+                        key={group}
+                        className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs rounded"
+                      >
+                        {group}
+                      </span>
+                    ))}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                  <span className={`px-2 py-1 rounded ${user.enabled
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                      : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                    }`}>
+                    {user.enabled ? 'Actif' : 'Inactif'}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                  <div className="flex gap-2">
+                    <select
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          handleAddToGroup(user.email, e.target.value);
+                          e.target.value = '';
+                        }
+                      }}
+                      className="text-xs border rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600"
+                    >
+                      <option value="">Ajouter groupe...</option>
+                      <option value="admin">admin</option>
+                      <option value="editor">editor</option>
+                      <option value="guest">guest</option>
+                    </select>
+
+                    {user.email !== currentUser?.email && (
+                      <button
+                        onClick={() => handleDeleteUser(user.email)}
+                        className="text-red-600 hover:text-red-800 dark:text-red-400"
+                      >
+                        Supprimer
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };

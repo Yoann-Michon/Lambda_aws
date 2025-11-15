@@ -52,10 +52,14 @@ provider:
             - cognito-idp:AdminCreateUser
             - cognito-idp:AdminSetUserPassword
             - cognito-idp:AdminAddUserToGroup
+            - cognito-idp:AdminRemoveUserFromGroup
             - cognito-idp:AdminInitiateAuth
             - cognito-idp:AdminGetUser
             - cognito-idp:AdminListGroupsForUser
             - cognito-idp:AdminUserGlobalSignOut
+            - cognito-idp:AdminEnableUser
+            - cognito-idp:AdminDeleteUser
+            - cognito-idp:ListUsers
           Resource:
             - !GetAtt CognitoUserPool.Arn
 
@@ -158,14 +162,19 @@ functions:
           method: get
           cors: true
 
-# ============= ADMIN FUNCTIONS =============
+ # ============= ADMIN FUNCTIONS =============
   getUsers:
     handler: functions/admin/getUsers.handler
     events:
       - http:
           path: admin/users
           method: get
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - Authorization
+            allowCredentials: false
           authorizer:
             type: COGNITO_USER_POOLS
             authorizerId: !Ref ApiGatewayAuthorizer
@@ -176,7 +185,12 @@ functions:
       - http:
           path: admin/users/{email}
           method: put
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - Authorization
+            allowCredentials: false
           authorizer:
             type: COGNITO_USER_POOLS
             authorizerId: !Ref ApiGatewayAuthorizer

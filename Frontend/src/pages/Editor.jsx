@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -19,20 +19,8 @@ const Editor = () => {
   const [error, setError] = useState('');
   const isEditing = !!id;
 
-  useEffect(() => {
-    if (!currentUser) {
-      navigate('/', { replace: true });
-      return;
-    }
-
-    if (isEditing) {
-      loadPost();
-    } else {
-      setFormData(prev => ({ ...prev, author: currentUser.name }));
-    }
-  }, [id, currentUser, navigate]);
-
-  const loadPost = async () => {
+  // Utiliser useCallback pour éviter les warnings de dépendances
+  const loadPost = useCallback(async () => {
     try {
       const data = await api.posts.getPost(id);
       setFormData({
@@ -45,7 +33,20 @@ const Editor = () => {
     } catch (err) {
       setError(err.message);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    if (isEditing) {
+      loadPost();
+    } else {
+      setFormData(prev => ({ ...prev, author: currentUser.name }));
+    }
+  }, [currentUser, navigate, isEditing, loadPost]);
 
   const handleChange = (e) => {
     setFormData({
@@ -65,7 +66,6 @@ const Editor = () => {
     }
   };
 
-  // Gestion de la touche Enter - remplace onKeyPress
   const handleTagInputKeyDown = (e) => {
     if (e.key === 'Enter') {
       handleAddTag(e);
@@ -98,7 +98,6 @@ const Editor = () => {
     }
   };
 
-  // Extraction du texte du bouton pour éviter le ternaire imbriqué
   const getSubmitButtonText = () => {
     if (loading) return 'Enregistrement...';
     return isEditing ? 'Mettre à jour' : 'Créer';
@@ -150,7 +149,6 @@ const Editor = () => {
         </div>
 
         <div>
-          {/* Ajout de htmlFor pour associer le label au contrôle */}
           <label className="block text-gray-700 dark:text-gray-300 mb-2" htmlFor="tagInput">
             Tags
           </label>
@@ -173,7 +171,6 @@ const Editor = () => {
             </button>
           </div>
           <div className="flex flex-wrap gap-2">
-            {/* Utilisation du tag comme clé au lieu de l'index */}
             {formData.tags.map((tag) => (
               <span
                 key={tag}
@@ -183,7 +180,7 @@ const Editor = () => {
                 <button
                   type="button"
                   onClick={() => handleRemoveTag(tag)}
-                  className="text-blue-600 hover:text-blue-800"
+                  className="text-blue-600 hover:text-blue-800 text-lg font-bold"
                 >
                   ×
                 </button>

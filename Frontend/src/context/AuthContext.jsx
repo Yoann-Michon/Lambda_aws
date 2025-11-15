@@ -9,13 +9,11 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Charger l'utilisateur depuis le localStorage au démarrage
     const user = api.auth.getCurrentUser();
     setCurrentUser(user);
     setLoading(false);
   }, []);
 
-  // Utilisation de useCallback pour éviter la recréation des fonctions
   const login = useCallback(async (email, password) => {
     try {
       const data = await api.auth.login(email, password);
@@ -29,15 +27,14 @@ export const AuthProvider = ({ children }) => {
   const signup = useCallback(async (email, password, name) => {
     try {
       await api.auth.signup(email, password, name);
-      // Auto-login après signup
       return await login(email, password);
     } catch (error) {
       return { success: false, error: error.message };
     }
   }, [login]);
 
-  const logout = useCallback(() => {
-    api.auth.logout();
+  const logout = useCallback(async () => {
+    await api.auth.logout();
     setCurrentUser(null);
   }, []);
 
@@ -53,7 +50,11 @@ export const AuthProvider = ({ children }) => {
     return currentUser?.groups?.includes('guest');
   }, [currentUser]);
 
-  // Utilisation de useMemo pour mémoriser l'objet value
+  // Vérifier si l'utilisateur peut créer/éditer des posts (editor ou admin)
+  const canCreatePosts = useCallback(() => {
+    return isEditor() || isAdmin();
+  }, [isEditor, isAdmin]);
+
   const value = useMemo(() => ({
     currentUser,
     loading,
@@ -63,13 +64,13 @@ export const AuthProvider = ({ children }) => {
     isAdmin,
     isEditor,
     isGuest,
+    canCreatePosts,
     isAuthenticated: !!currentUser
-  }), [currentUser, loading, login, signup, logout, isAdmin, isEditor, isGuest]);
+  }), [currentUser, loading, login, signup, logout, isAdmin, isEditor, isGuest, canCreatePosts]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-// Validation PropTypes
 AuthProvider.propTypes = {
   children: PropTypes.node.isRequired
 };

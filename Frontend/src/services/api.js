@@ -8,7 +8,7 @@ const getAuthHeaders = () => {
   const token = getAuthToken();
   return {
     'Content-Type': 'application/json',
-    ...(token && { 'Authorization': `Bearer ${token}` })
+    ...(token && { 'Authorization': token }) // Retirer "Bearer " car Cognito n'en a pas besoin
   };
 };
 
@@ -55,25 +55,28 @@ export const authAPI = {
     return data;
   },
 
-  // Déconnexion (local uniquement)
-  logout: () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('idToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
-  },
-
   // Déconnexion complète (avec backend)
-  logoutBackend: async () => {
-    const response = await fetch(`${API_BASE_URL}/auth/logout`, {
-      method: 'POST',
-      headers: getAuthHeaders()
-    });
-    
-    // Supprimer les tokens locaux dans tous les cas
-    authAPI.logout();
-    
-    return handleResponse(response);
+  logout: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+      
+      // Ne pas lancer d'erreur si la déconnexion backend échoue
+      if (response.ok) {
+        await handleResponse(response);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la déconnexion backend:', error);
+      // Continue quand même avec la déconnexion locale
+    } finally {
+      // Toujours supprimer les tokens locaux
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('idToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+    }
   },
 
   // Récupérer l'utilisateur courant depuis le localStorage

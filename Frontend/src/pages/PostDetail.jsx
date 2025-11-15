@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -11,11 +11,7 @@ const PostDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    loadPost();
-  }, [id]);
-
-  const loadPost = async () => {
+  const loadPost = useCallback(async () => {
     try {
       setLoading(true);
       const data = await api.posts.getPost(id);
@@ -25,7 +21,11 @@ const PostDetail = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    loadPost();
+  }, [loadPost]);
 
   const handleDelete = async () => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer cet article ?')) {
@@ -57,6 +57,14 @@ const PostDetail = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded">
           {error || 'Article non trouvé'}
+        </div>
+        <div className="mt-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="text-blue-600 hover:text-blue-800"
+          >
+            ← Retour
+          </button>
         </div>
       </div>
     );

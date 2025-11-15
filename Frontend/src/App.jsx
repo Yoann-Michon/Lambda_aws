@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
@@ -10,9 +10,9 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Editor = lazy(() => import('./pages/Editor'));
 const PostDetail = lazy(() => import('./pages/PostDetail'));
 const PublicPosts = lazy(() => import('./pages/PublicPost'));
+const Users = lazy(() => import('./pages/Users'));
 const Unauthorized = lazy(() => import('./pages/Unauthorized'));
 
-// Spinner pendant le chargement
 const PageLoader = () => (
   <div className="flex flex-col justify-center items-center min-h-screen">
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
@@ -20,15 +20,20 @@ const PageLoader = () => (
   </div>
 );
 
-// --- PrivateRoute intégré directement ---
-const PrivateRoute = ({ children, roles }) => {
-  const { currentUser, loading } = useAuth();
+// PrivateRoute avec vérification de permissions
+const PrivateRoute = ({ children, adminOnly = false, editorAccess = false }) => {
+  const { currentUser, loading, isAdmin, isEditor } = useAuth();
 
   if (loading) return <PageLoader />;
+  if (!currentUser) return <Navigate to="/login" replace />;
+  
+  // Si admin uniquement
+  if (adminOnly && !isAdmin()) {
+    return <Navigate to="/unauthorized" replace />;
+  }
 
-  if (!currentUser) return <Navigate to="/" replace />;
-
-  if (roles && !roles.includes(currentUser.role)) {
+  // Si nécessite editor ou admin
+  if (editorAccess && !isEditor() && !isAdmin()) {
     return <Navigate to="/unauthorized" replace />;
   }
 
@@ -37,7 +42,8 @@ const PrivateRoute = ({ children, roles }) => {
 
 PrivateRoute.propTypes = {
   children: PropTypes.node.isRequired,
-  roles: PropTypes.arrayOf(PropTypes.string)
+  adminOnly: PropTypes.bool,
+  editorAccess: PropTypes.bool
 };
 
 function App() {
@@ -55,7 +61,7 @@ function App() {
               <Route path="/posts" element={<PublicPosts />} />
               <Route path="/posts/:id" element={<PostDetail />} />
 
-              {/* Pages privées */}
+              {/* Pages privées - Tous les utilisateurs connectés */}
               <Route
                 path="/dashboard"
                 element={
@@ -64,10 +70,12 @@ function App() {
                   </PrivateRoute>
                 }
               />
+
+              {/* Pages privées - Editor et Admin uniquement */}
               <Route
                 path="/editor"
                 element={
-                  <PrivateRoute roles={['admin', 'author']}>
+                  <PrivateRoute editorAccess={true}>
                     <Editor />
                   </PrivateRoute>
                 }
@@ -75,8 +83,18 @@ function App() {
               <Route
                 path="/editor/:id"
                 element={
-                  <PrivateRoute roles={['admin', 'author']}>
+                  <PrivateRoute editorAccess={true}>
                     <Editor />
+                  </PrivateRoute>
+                }
+              />
+
+              {/* Pages admin uniquement */}
+              <Route
+                path="/users"
+                element={
+                  <PrivateRoute adminOnly={true}>
+                    <Users />
                   </PrivateRoute>
                 }
               />

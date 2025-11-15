@@ -64,7 +64,7 @@ exports.handler = async (event) => {
     const addToGroupCommand = new AdminAddUserToGroupCommand({
       UserPoolId: process.env.USER_POOL_ID,
       Username: email,
-      GroupName: 'guest'
+      GroupName: 'editor'
     });
 
     await cognitoClient.send(addToGroupCommand);

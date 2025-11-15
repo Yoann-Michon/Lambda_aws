@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const Signup = () => {
   const navigate = useNavigate();
+  const { signup, currentUser } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -11,11 +12,10 @@ const Signup = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const user = api.auth.getCurrentUser();
-    if (user) {
-      navigate('/dashboard');
+    if (currentUser) {
+      navigate('/dashboard', { replace: true });
     }
-  }, [navigate]);
+  }, [currentUser, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,10 +23,14 @@ const Signup = () => {
     setLoading(true);
 
     try {
-      const signupResponse = await api.auth.signup(email, password, name);
-      console.log('Signup successful:', signupResponse);
-      await api.auth.login(email, password);
-      navigate('/dashboard');
+      const result = await signup(email, password, name);
+      
+      if (result.success) {
+        console.log('Signup and login successful:', result.data.user);
+        // La redirection sera gérée par le useEffect
+      } else {
+        setError(result.error);
+      }
     } catch (err) {
       console.error('Signup error:', err);
       setError(err.message || 'Erreur lors de l\'inscription');

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 
@@ -7,11 +7,7 @@ const PublicPost = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    loadPosts();
-  }, []);
-
-  const loadPosts = async () => {
+  const loadPosts = useCallback(async () => {
     try {
       setLoading(true);
       const data = await api.posts.getAllPosts('published');
@@ -21,7 +17,11 @@ const PublicPost = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadPosts();
+  }, [loadPosts]);
 
   if (loading) {
     return (
@@ -44,9 +44,11 @@ const PublicPost = () => {
       )}
 
       {posts.length === 0 ? (
-        <p className="text-center text-gray-600 dark:text-gray-400">
-          Aucun article publié pour le moment.
-        </p>
+        <div className="text-center py-12">
+          <p className="text-gray-600 dark:text-gray-400">
+            Aucun article publié pour le moment.
+          </p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {posts.map(post => (

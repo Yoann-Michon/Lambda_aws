@@ -1,20 +1,21 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
   const navigate = useNavigate();
+  const { login, currentUser } = useAuth(); // Utiliser login du contexte
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Rediriger si déjà connecté
   useEffect(() => {
-    const user = api.auth.getCurrentUser();
-    if (user) {
+    if (currentUser) {
       navigate('/dashboard', { replace: true });
     }
-  }, [navigate]);
+  }, [currentUser, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -22,10 +23,15 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const response = await api.auth.login(email, password);
-      console.log('Login successful:', response.user);
+      // Utiliser la fonction login du contexte
+      const result = await login(email, password);
       
-      navigate('/dashboard');
+      if (result.success) {
+        console.log('Login successful:', result.data.user);
+        // La redirection sera gérée par le useEffect ci-dessus
+      } else {
+        setError(result.error);
+      }
     } catch (err) {
       console.error('Login error:', err);
       setError(err.message || 'Erreur lors de la connexion');
