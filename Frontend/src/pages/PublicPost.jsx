@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
+import SearchBar from '../components/SearchBar';
 
 const PublicPost = () => {
-  const [posts, setPosts] = useState([]);
+  const [allPosts, setAllPosts] = useState([]);
+  const [displayedPosts, setDisplayedPosts] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -12,13 +15,11 @@ const PublicPost = () => {
       setLoading(true);
       const data = await api.posts.getAllPosts('published');
       
-      // Pour chaque post, obtenir les URLs signées pour l'image de couverture
       const postsWithSignedUrls = await Promise.all(
         data.posts.map(async (post) => {
-          if (post.mediaUrls && post.mediaUrls.length > 0) {
+          if (post.mediaUrls?.length > 0) {
             try {
-              // Ne récupérer que la première image pour la miniature
-              const signedData = await api.media.getSignedUrls([post.mediaUrls[0]], 86400); // 24h
+              const signedData = await api.media.getSignedUrls([post.mediaUrls[0]], 86400);
               return {
                 ...post,
                 coverImageUrl: signedData.signedUrls[0]?.signedUrl || null
@@ -32,7 +33,8 @@ const PublicPost = () => {
         })
       );
       
-      setPosts(postsWithSignedUrls);
+      setAllPosts(postsWithSignedUrls);
+      setDisplayedPosts(postsWithSignedUrls);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -43,6 +45,62 @@ const PublicPost = () => {
   useEffect(() => {
     loadPosts();
   }, [loadPosts]);
+
+  const handleSearch = (query) => {
+    setSearchQuery(query);
+    
+    if (!query || query.trim().length === 0) {
+      setDisplayedPosts(allPosts);
+      return;
+    }
+
+    const searchTerm = query.toLowerCase().trim();
+    
+    const filtered = allPosts.filter(post => {
+      const titleMatch = post.title?.toLowerCase().includes(searchTerm);
+      const contentMatch = post.content?.toLowerCase().includes(searchTerm);
+      const authorMatch = post.authorName?.toLowerCase().includes(searchTerm);
+      const tagsMatch = post.tags?.some(tag => 
+        tag.toLowerCase().includes(searchTerm)
+      );
+
+      return titleMatch || contentMatch || authorMatch || tagsMatch;
+    });
+
+    const sorted = filtered.sort((a, b) => {
+      const aTitle = a.title?.toLowerCase() || '';
+      const bTitle = b.title?.toLowerCase() || '';
+      
+      const aTitleExact = aTitle === searchTerm;
+      const bTitleExact = bTitle === searchTerm;
+      
+      if (aTitleExact && !bTitleExact) return -1;
+      if (!aTitleExact && bTitleExact) return 1;
+      
+      const aTitleStarts = aTitle.startsWith(searchTerm);
+      const bTitleStarts = bTitle.startsWith(searchTerm);
+      
+      if (aTitleStarts && !bTitleStarts) return -1;
+      if (!aTitleStarts && bTitleStarts) return 1;
+      
+      return b.createdAt - a.createdAt;
+    });
+
+    setDisplayedPosts(sorted);
+  };
+
+  const highlightText = (text, query) => {
+    if (!query || !text) return text;
+    
+    const parts = text.split(new RegExp(`(${query})`, 'gi'));
+    return parts.map((part, index) => 
+      part.toLowerCase() === query.toLowerCase() ? (
+        <mark key={index} className="bg-yellow-200 dark:bg-yellow-600">{part}</mark>
+      ) : (
+        part
+      )
+    );
+  };
 
   if (loading) {
     return (
@@ -55,12 +113,24 @@ const PublicPost = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
+        <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4 text-center">
           Articles Publics
         </h1>
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
           Découvrez nos derniers articles
         </p>
+        
+        <div className="flex justify-center mb-6">
+          <SearchBar onSearch={handleSearch} />
+        </div>
+
+        {searchQuery && (
+          <div className="text-center">
+            <p className="text-gray-600 dark:text-gray-400">
+              {displayedPosts.length} résultat{displayedPosts.length !== 1 ? 's' : ''} pour "{searchQuery}"
+            </p>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -69,34 +139,59 @@ const PublicPost = () => {
         </div>
       )}
 
-      {posts.length === 0 ? (
+      {displayedPosts.length === 0 ? (
         <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow-md">
-          <svg 
-            className="w-16 h-16 mx-auto mb-4 text-gray-400" 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-          >
-            <path 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
-              strokeWidth={2} 
-              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" 
-            />
-          </svg>
-          <p className="text-gray-600 dark:text-gray-400 text-lg">
-            Aucun article publié pour le moment.
-          </p>
+          {searchQuery ? (
+            <>
+              <svg 
+                className="w-16 h-16 mx-auto mb-4 text-gray-400" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={2} 
+                  d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" 
+                />
+              </svg>
+              <p className="text-gray-600 dark:text-gray-400 text-lg mb-2">
+                Aucun résultat trouvé
+              </p>
+              <p className="text-gray-500 dark:text-gray-500 text-sm">
+                Essayez avec d'autres mots-clés
+              </p>
+            </>
+          ) : (
+            <>
+              <svg 
+                className="w-16 h-16 mx-auto mb-4 text-gray-400" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={2} 
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" 
+                />
+              </svg>
+              <p className="text-gray-600 dark:text-gray-400 text-lg">
+                Aucun article publié pour le moment.
+              </p>
+            </>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {posts.map(post => (
+          {displayedPosts.map(post => (
             <Link
               key={post.postId}
               to={`/posts/${post.postId}`}
               className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 group"
             >
-              {/* Image de couverture */}
               {post.coverImageUrl ? (
                 <div className="relative h-48 overflow-hidden">
                   <img
@@ -128,25 +223,23 @@ const PublicPost = () => {
                 </div>
               )}
 
-              {/* Contenu */}
               <div className="p-6">
                 <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
-                  {post.title}
+                  {searchQuery ? highlightText(post.title, searchQuery) : post.title}
                 </h2>
                 
                 <p className="text-gray-600 dark:text-gray-400 mb-4 line-clamp-3 text-sm">
-                  {post.content}
+                  {searchQuery ? highlightText(post.content, searchQuery) : post.content}
                 </p>
 
-                {/* Tags */}
-                {post.tags && post.tags.length > 0 && (
+                {post.tags?.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-4">
                     {post.tags.slice(0, 3).map((tag, index) => (
                       <span
                         key={index}
                         className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs rounded-full"
                       >
-                        #{tag}
+                        #{searchQuery ? highlightText(tag, searchQuery) : tag}
                       </span>
                     ))}
                     {post.tags.length > 3 && (
@@ -157,7 +250,6 @@ const PublicPost = () => {
                   </div>
                 )}
 
-                {/* Metadata */}
                 <div className="flex justify-between items-center text-sm text-gray-500 dark:text-gray-500 pt-4 border-t border-gray-200 dark:border-gray-700">
                   <div className="flex items-center gap-2">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

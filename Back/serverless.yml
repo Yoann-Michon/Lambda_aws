@@ -144,6 +144,18 @@ functions:
             type: COGNITO_USER_POOLS
             authorizerId: !Ref ApiGatewayAuthorizer
 
+  searchPosts:
+    handler: functions/posts/searchPosts.handler
+    events:
+      - http:
+          path: posts/search
+          method: get
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+            allowCredentials: false
+
  # ============= ADMIN FUNCTIONS =============
   getUsers:
     handler: functions/admin/getUsers.handler

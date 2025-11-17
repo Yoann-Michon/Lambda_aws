@@ -182,6 +182,18 @@ export const postsAPI = {
       headers: getAuthHeaders()
     });
     return handleResponse(response);
+  },
+
+  searchPosts: async (query, limit = 50) => {
+    const params = new URLSearchParams();
+    params.append('q', query);
+    if (limit) params.append('limit', limit);
+    
+    const response = await fetch(`${API_BASE_URL}/posts/search?${params.toString()}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    return handleResponse(response);
   }
 };
 
