@@ -1,4 +1,4 @@
-const config = require('../../config');
+const config = require('../config');
 
 const validateOrigin = (event, stage) => {
   const origin = event.headers?.origin || event.headers?.Origin;
