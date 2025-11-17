@@ -13,8 +13,6 @@ const cognitoClient = new CognitoIdentityProviderClient({ region: 'eu-west-1' })
  * Body: { email, password }
  */
 exports.handler = async (event) => {
-  console.log('Login request:', JSON.stringify(event));
-
   try {
     // Parser le body de la requête
     const body = JSON.parse(event.body);
@@ -46,7 +44,6 @@ exports.handler = async (event) => {
     });
 
     const authResult = await cognitoClient.send(authCommand);
-    console.log('Authentication successful');
 
     // Récupérer les informations de l'utilisateur
     const getUserCommand = new AdminGetUserCommand({

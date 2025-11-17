@@ -13,9 +13,10 @@ const Editor = () => {
     content: '',
     author: '',
     tags: [],
-    status: 'draft',
-    mediaUrls: []
+    status: 'draft'
   });
+  const [images, setImages] = useState([]);
+  const [existingMediaUrls, setExistingMediaUrls] = useState([]);
   const [tagInput, setTagInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -29,9 +30,20 @@ const Editor = () => {
         content: data.post.content,
         author: data.post.author,
         tags: data.post.tags || [],
-        status: data.post.status,
-        mediaUrls: data.post.mediaUrls || []
+        status: data.post.status
       });
+      
+      // Charger les images existantes
+      if (data.post.mediaUrls && data.post.mediaUrls.length > 0) {
+        setExistingMediaUrls(data.post.mediaUrls);
+        // Afficher les images existantes dans l'uploader
+        const existingImages = data.post.mediaUrls.map(url => ({
+          url: url,
+          caption: '',
+          isExisting: true
+        }));
+        setImages(existingImages);
+      }
     } catch (err) {
       setError(err.message);
     }
@@ -58,10 +70,7 @@ const Editor = () => {
   };
 
   const handleImagesChange = (newImages) => {
-    setFormData({
-      ...formData,
-      mediaUrls: newImages
-    });
+    setImages(newImages);
   };
 
   const handleAddTag = (e) => {
@@ -95,9 +104,22 @@ const Editor = () => {
 
     try {
       if (isEditing) {
-        await api.posts.updatePost(id, formData);
+        // Séparer les images existantes des nouvelles
+        const newImages = images.filter(img => !img.isExisting && img.file);
+        const keptExistingUrls = images
+          .filter(img => img.isExisting && img.url)
+          .map(img => img.url);
+
+        await api.posts.updatePost(id, {
+          ...formData,
+          existingMediaUrls: keptExistingUrls,
+          newImages: newImages
+        });
       } else {
-        await api.posts.createPost(formData);
+        await api.posts.createPost({
+          ...formData,
+          images: images
+        });
       }
       navigate('/dashboard');
     } catch (err) {
@@ -141,6 +163,12 @@ const Editor = () => {
           />
         </div>
 
+        {/* Upload des images */}
+        <ImageUploader 
+          images={images}
+          onImagesChange={handleImagesChange}
+        />
+
         <div>
           <label className="block text-gray-700 dark:text-gray-300 mb-2" htmlFor="content">
             Contenu
@@ -156,12 +184,6 @@ const Editor = () => {
             placeholder="Écrivez votre article ici..."
           />
         </div>
-
-        {/* Composant d'upload d'images */}
-        <ImageUploader 
-          images={formData.mediaUrls}
-          onImagesChange={handleImagesChange}
-        />
 
         <div>
           <label className="block text-gray-700 dark:text-gray-300 mb-2" htmlFor="tagInput">

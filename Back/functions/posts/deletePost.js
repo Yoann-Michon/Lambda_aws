@@ -11,10 +11,8 @@ const TABLE_NAME = process.env.POSTS_TABLE;
  * Headers: Authorization (Cognito token requis)
  */
 exports.handler = async (event) => {
-  console.log('Delete post request:', event);
 
   try {
-    // Récupérer l'ID du post
     const postId = event.pathParameters.id;
 
     if (!postId) {
@@ -30,11 +28,9 @@ exports.handler = async (event) => {
       };
     }
 
-    // Récupérer les informations de l'utilisateur
     const userEmail = event.requestContext.authorizer.claims.email;
     const userGroups = event.requestContext.authorizer.claims['cognito:groups'] || 'guest';
 
-    // Vérifier si le post existe
     const getCommand = new GetCommand({
       TableName: TABLE_NAME,
       Key: {
@@ -57,7 +53,6 @@ exports.handler = async (event) => {
       };
     }
 
-    // Vérifier les permissions (seul l'auteur ou un admin peut supprimer)
     const isOwner = existingPost.Item.authorEmail === userEmail;
     const isAdmin = userGroups.includes('admin');
 
@@ -74,7 +69,6 @@ exports.handler = async (event) => {
       };
     }
 
-    // Supprimer le post
     const deleteCommand = new DeleteCommand({
       TableName: TABLE_NAME,
       Key: {
@@ -84,9 +78,6 @@ exports.handler = async (event) => {
 
     await dynamodb.send(deleteCommand);
 
-    console.log('Post deleted successfully:', postId);
-
-    // Réponse de succès
     return {
       statusCode: 200,
       headers: {

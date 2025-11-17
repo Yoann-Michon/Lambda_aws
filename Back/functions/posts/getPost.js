@@ -11,10 +11,8 @@ const TABLE_NAME = process.env.POSTS_TABLE;
  * Accessible sans authentification (public)
  */
 exports.handler = async (event) => {
-  console.log('Get post request:', event);
 
   try {
-    // Récupérer l'ID du post depuis les paramètres de chemin
     const postId = event.pathParameters.id;
 
     if (!postId) {
@@ -30,7 +28,6 @@ exports.handler = async (event) => {
       };
     }
 
-    // Récupérer le post depuis DynamoDB
     const getCommand = new GetCommand({
       TableName: TABLE_NAME,
       Key: {
@@ -40,7 +37,6 @@ exports.handler = async (event) => {
 
     const result = await dynamodb.send(getCommand);
 
-    // Vérifier si le post existe
     if (!result.Item) {
       return {
         statusCode: 404,
@@ -54,7 +50,6 @@ exports.handler = async (event) => {
       };
     }
 
-    // Incrémenter le compteur de vues
     const updateCommand = new UpdateCommand({
       TableName: TABLE_NAME,
       Key: {
@@ -73,7 +68,6 @@ exports.handler = async (event) => {
 
     const updatedResult = await dynamodb.send(updateCommand);
 
-    // Réponse de succès
     return {
       statusCode: 200,
       headers: {

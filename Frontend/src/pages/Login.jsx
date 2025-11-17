@@ -26,10 +26,7 @@ const Login = () => {
       // Utiliser la fonction login du contexte
       const result = await login(email, password);
       
-      if (result.success) {
-        console.log('Login successful:', result.data.user);
-        // La redirection sera gérée par le useEffect ci-dessus
-      } else {
+      if (!result.success) {
         setError(result.error);
       }
     } catch (err) {

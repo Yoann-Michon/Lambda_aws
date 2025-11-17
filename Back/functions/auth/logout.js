@@ -11,7 +11,6 @@ const cognitoClient = new CognitoIdentityProviderClient({ region: 'eu-west-1' })
  * Headers: Authorization (Cognito token requis)
  */
 exports.handler = async (event) => {
-  console.log('Logout request:', JSON.stringify(event));
 
   try {
     // Récupérer l'email de l'utilisateur depuis le token
@@ -37,8 +36,6 @@ exports.handler = async (event) => {
     });
 
     await cognitoClient.send(signOutCommand);
-
-    console.log('User logged out successfully:', userEmail);
 
     // Réponse de succès
     return {

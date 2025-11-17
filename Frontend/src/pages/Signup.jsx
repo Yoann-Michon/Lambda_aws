@@ -25,10 +25,7 @@ const Signup = () => {
     try {
       const result = await signup(email, password, name);
       
-      if (result.success) {
-        console.log('Signup and login successful:', result.data.user);
-        // La redirection sera gérée par le useEffect
-      } else {
+      if (!result.success) {
         setError(result.error);
       }
     } catch (err) {

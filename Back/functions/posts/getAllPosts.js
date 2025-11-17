@@ -11,21 +11,17 @@ const TABLE_NAME = process.env.POSTS_TABLE;
  * Accessible sans authentification (public)
  */
 exports.handler = async (event) => {
-  console.log('Get all posts request:', event);
 
   try {
-    // Récupérer les paramètres de requête
     const queryParams = event.queryStringParameters || {};
-    const status = queryParams.status; // Filter par status (draft, published)
-    const limit = parseInt(queryParams.limit) || 20; // Limite par défaut: 20
+    const status = queryParams.status; 
+    const limit = parseInt(queryParams.limit) || 20; 
 
-    // Paramètres de base pour le scan
     let params = {
       TableName: TABLE_NAME,
       Limit: limit
     };
 
-    // Si un filtre de status est spécifié
     if (status) {
       params.FilterExpression = '#status = :statusValue';
       params.ExpressionAttributeNames = {
@@ -36,14 +32,11 @@ exports.handler = async (event) => {
       };
     }
 
-    // Scanner la table DynamoDB
     const command = new ScanCommand(params);
     const result = await dynamodb.send(command);
 
-    // Trier les posts par date de création (plus récent en premier)
     const sortedPosts = result.Items.sort((a, b) => b.createdAt - a.createdAt);
 
-    // Réponse de succès
     return {
       statusCode: 200,
       headers: {

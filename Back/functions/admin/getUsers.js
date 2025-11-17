@@ -12,8 +12,6 @@ const cognitoClient = new CognitoIdentityProviderClient({ region: 'eu-west-1' })
  * Headers: Authorization (Cognito token requis - Admin uniquement)
  */
 exports.handler = async (event) => {
-  console.log('Get users request:', JSON.stringify(event));
-
   try {
     // Récupérer les informations de l'utilisateur
     const userGroups = event.requestContext?.authorizer?.claims['cognito:groups'] || '';
@@ -34,8 +32,6 @@ exports.handler = async (event) => {
         })
       };
     }
-
-    console.log('Admin user requesting users list:', userEmail);
 
     // Récupérer les paramètres de requête
     const queryParams = event.queryStringParameters || {};

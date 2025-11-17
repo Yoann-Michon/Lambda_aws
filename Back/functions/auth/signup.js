@@ -13,14 +13,10 @@ const cognitoClient = new CognitoIdentityProviderClient({ region: 'eu-west-1' })
  * Body: { email, password, name }
  */
 exports.handler = async (event) => {
-  console.log('Signup request:', JSON.stringify(event));
-
   try {
-    // Parser le body de la requête
     const body = JSON.parse(event.body);
     const { email, password, name } = body;
 
-    // Validation des données
     if (!email || !password || !name) {
       return {
         statusCode: 400,
@@ -34,7 +30,6 @@ exports.handler = async (event) => {
       };
     }
 
-    // Créer l'utilisateur dans Cognito
     const createUserCommand = new AdminCreateUserCommand({
       UserPoolId: process.env.USER_POOL_ID,
       Username: email,
@@ -48,9 +43,7 @@ exports.handler = async (event) => {
     });
 
     const createUserResult = await cognitoClient.send(createUserCommand);
-    console.log('User created:', createUserResult);
 
-    // Définir le mot de passe permanent
     const setPasswordCommand = new AdminSetUserPasswordCommand({
       UserPoolId: process.env.USER_POOL_ID,
       Username: email,
@@ -60,7 +53,6 @@ exports.handler = async (event) => {
 
     await cognitoClient.send(setPasswordCommand);
 
-    // Ajouter au groupe "guest"
     const addToGroupCommand = new AdminAddUserToGroupCommand({
       UserPoolId: process.env.USER_POOL_ID,
       Username: email,
@@ -69,7 +61,6 @@ exports.handler = async (event) => {
 
     await cognitoClient.send(addToGroupCommand);
 
-    // Réponse de succès
     return {
       statusCode: 201,
       headers: {

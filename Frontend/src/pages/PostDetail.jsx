@@ -8,7 +8,9 @@ const PostDetail = () => {
   const navigate = useNavigate();
   const { currentUser, isAdmin } = useAuth();
   const [post, setPost] = useState(null);
+  const [signedImageUrls, setSignedImageUrls] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingImages, setLoadingImages] = useState(false);
   const [error, setError] = useState('');
 
   const loadPost = useCallback(async () => {
@@ -16,6 +18,21 @@ const PostDetail = () => {
       setLoading(true);
       const data = await api.posts.getPost(id);
       setPost(data.post);
+
+      // Obtenir les URLs pré-signées pour les images
+      if (data.post.mediaUrls && data.post.mediaUrls.length > 0) {
+        setLoadingImages(true);
+        try {
+          const expiresIn = data.post.status === 'published' ? 86400 : 3600; // 24h pour publié, 1h pour brouillon
+          const signedData = await api.media.getSignedUrls(data.post.mediaUrls, expiresIn);
+          setSignedImageUrls(signedData.signedUrls || []);
+        } catch (imgErr) {
+          console.error('Error loading images:', imgErr);
+          setSignedImageUrls([]);
+        } finally {
+          setLoadingImages(false);
+        }
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -40,8 +57,8 @@ const PostDetail = () => {
     }
   };
 
-  const canEdit = currentUser && (
-    currentUser.email === post?.authorEmail || isAdmin()
+  const canEdit = currentUser && post && (
+    currentUser.email === post.authorEmail || isAdmin()
   );
 
   if (loading) {
@@ -129,32 +146,54 @@ const PostDetail = () => {
           </div>
         )}
 
+        {/* Images avec URLs pré-signées - AVANT le contenu */}
+        {signedImageUrls.length > 0 && (
+          <div className="mb-8 space-y-6">
+            {loadingImages ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : (
+              signedImageUrls.map((urlData, index) => (
+                <div key={index} className="border-b border-gray-200 dark:border-gray-700 pb-6 last:border-0">
+                  {urlData.signedUrl && !urlData.error ? (
+                    <img
+                      src={urlData.signedUrl}
+                      alt={`Image ${index + 1}`}
+                      className="w-full rounded-lg shadow-md"
+                      onError={(e) => {
+                        console.error('Image failed to load:', urlData.originalKey);
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded">
+                      ⚠️ Erreur de chargement de l'image
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Contenu de l'article */}
         <div className="prose dark:prose-invert max-w-none">
-          <div className="whitespace-pre-wrap text-gray-800 dark:text-gray-200 leading-relaxed">
+          <div className="whitespace-pre-wrap text-gray-800 dark:text-gray-200 leading-relaxed text-lg">
             {post.content}
           </div>
         </div>
-
-        {post.mediaUrls && post.mediaUrls.length > 0 && (
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-            {post.mediaUrls.map((url, index) => (
-              <img
-                key={index}
-                src={url}
-                alt={`Media ${index + 1}`}
-                className="w-full rounded-lg"
-              />
-            ))}
-          </div>
-        )}
       </article>
 
       <div className="mt-6">
         <button
           onClick={() => navigate(-1)}
-          className="text-blue-600 hover:text-blue-800"
+          className="text-blue-600 hover:text-blue-800 flex items-center gap-2"
         >
-          ← Retour
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Retour
         </button>
       </div>
     </div>

@@ -142,26 +142,6 @@ functions:
             type: COGNITO_USER_POOLS
             authorizerId: !Ref ApiGatewayAuthorizer
 
-  # ============= MEDIA FUNCTIONS =============
-  uploadMedia:
-    handler: functions/media/uploadMedia.handler
-    events:
-      - http:
-          path: media/upload
-          method: post
-          cors: true
-          authorizer:
-            type: COGNITO_USER_POOLS
-            authorizerId: !Ref ApiGatewayAuthorizer
-
-  getMediaUrl:
-    handler: functions/media/getMediaUrl.handler
-    events:
-      - http:
-          path: media/{key}
-          method: get
-          cors: true
-
  # ============= ADMIN FUNCTIONS =============
   getUsers:
     handler: functions/admin/getUsers.handler
@@ -194,6 +174,20 @@ functions:
           authorizer:
             type: COGNITO_USER_POOLS
             authorizerId: !Ref ApiGatewayAuthorizer
+
+  # ============= MEDIA FUNCTIONS =============
+  getSignedUrl:
+    handler: functions/media/getSignedUrl.handler
+    events:
+      - http:
+          path: media/signed-urls
+          method: post
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - Authorization
+            allowCredentials: false
             
 # ============= RESOURCES =============
 resources:
@@ -220,11 +214,16 @@ resources:
             Projection:
               ProjectionType: ALL
 
-    # S3 Bucket pour les médias
+    # S3 Bucket PRIVÉ pour les médias
     MediaBucket:
       Type: AWS::S3::Bucket
       Properties:
         BucketName: ${self:provider.environment.MEDIA_BUCKET}
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true        
+          BlockPublicPolicy: true      
+          IgnorePublicAcls: true       
+          RestrictPublicBuckets: true  
         CorsConfiguration:
           CorsRules:
             - AllowedOrigins:
