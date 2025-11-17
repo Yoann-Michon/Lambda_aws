@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import ImageUploader from '../components/ImageUploader';
 
 const Editor = () => {
   const { id } = useParams();
@@ -12,14 +13,14 @@ const Editor = () => {
     content: '',
     author: '',
     tags: [],
-    status: 'draft'
+    status: 'draft',
+    mediaUrls: []
   });
   const [tagInput, setTagInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const isEditing = !!id;
 
-  // Utiliser useCallback pour éviter les warnings de dépendances
   const loadPost = useCallback(async () => {
     try {
       const data = await api.posts.getPost(id);
@@ -28,7 +29,8 @@ const Editor = () => {
         content: data.post.content,
         author: data.post.author,
         tags: data.post.tags || [],
-        status: data.post.status
+        status: data.post.status,
+        mediaUrls: data.post.mediaUrls || []
       });
     } catch (err) {
       setError(err.message);
@@ -52,6 +54,13 @@ const Editor = () => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
+    });
+  };
+
+  const handleImagesChange = (newImages) => {
+    setFormData({
+      ...formData,
+      mediaUrls: newImages
     });
   };
 
@@ -147,6 +156,12 @@ const Editor = () => {
             placeholder="Écrivez votre article ici..."
           />
         </div>
+
+        {/* Composant d'upload d'images */}
+        <ImageUploader 
+          images={formData.mediaUrls}
+          onImagesChange={handleImagesChange}
+        />
 
         <div>
           <label className="block text-gray-700 dark:text-gray-300 mb-2" htmlFor="tagInput">

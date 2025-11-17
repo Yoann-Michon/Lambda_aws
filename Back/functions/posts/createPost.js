@@ -9,7 +9,7 @@ const TABLE_NAME = process.env.POSTS_TABLE;
 /**
  * Fonction pour créer un nouveau post
  * POST /posts
- * Body: { title, content, author, tags, status }
+ * Body: { title, content, author, tags, status, mediaUrls }
  * Headers: Authorization (Cognito token requis)
  */
 exports.handler = async (event) => {
@@ -18,7 +18,7 @@ exports.handler = async (event) => {
   try {
     // Parser le body de la requête
     const body = JSON.parse(event.body);
-    const { title, content, author, tags, status } = body;
+    const { title, content, author, tags, status, mediaUrls } = body;
 
     // Validation des données obligatoires
     if (!title || !content || !author) {
@@ -47,7 +47,7 @@ exports.handler = async (event) => {
 
     console.log('User creating post:', { userEmail, userName, userGroups });
 
-    // Générer un ID unique pour le post (natif Node.js 18)
+    // Générer un ID unique pour le post
     const postId = crypto.randomUUID();
     const timestamp = Date.now();
 
@@ -61,7 +61,7 @@ exports.handler = async (event) => {
       authorName: userName,
       tags: tags || [],
       status: status || 'draft',
-      mediaUrls: [],
+      mediaUrls: mediaUrls || [],
       createdAt: timestamp,
       updatedAt: timestamp,
       publishedAt: status === 'published' ? timestamp : null,

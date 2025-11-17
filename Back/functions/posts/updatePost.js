@@ -5,17 +5,10 @@ const client = new DynamoDBClient({ region: 'eu-west-1' });
 const dynamodb = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.POSTS_TABLE;
 
-/**
- * Fonction pour mettre à jour un post
- * PUT /posts/{id}
- * Body: { title, content, tags, status }
- * Headers: Authorization (Cognito token requis)
- */
 exports.handler = async (event) => {
   console.log('Update post request:', event);
 
   try {
-    // Récupérer l'ID du post
     const postId = event.pathParameters.id;
 
     if (!postId) {
@@ -31,15 +24,12 @@ exports.handler = async (event) => {
       };
     }
 
-    // Parser le body de la requête
     const body = JSON.parse(event.body);
-    const { title, content, tags, status } = body;
+    const { title, content, tags, status, mediaUrls } = body;
 
-    // Récupérer les informations de l'utilisateur
     const userEmail = event.requestContext.authorizer.claims.email;
     const userGroups = event.requestContext.authorizer.claims['cognito:groups'] || 'guest';
 
-    // Vérifier si le post existe
     const getCommand = new GetCommand({
       TableName: TABLE_NAME,
       Key: {
@@ -62,7 +52,6 @@ exports.handler = async (event) => {
       };
     }
 
-    // Vérifier les permissions
     const isOwner = existingPost.Item.authorEmail === userEmail;
     const isAdmin = userGroups.includes('admin');
 
@@ -79,7 +68,6 @@ exports.handler = async (event) => {
       };
     }
 
-    // Construire l'expression de mise à jour
     let updateExpression = 'SET updatedAt = :updatedAt';
     const expressionAttributeValues = {
       ':updatedAt': Date.now()
@@ -101,19 +89,22 @@ exports.handler = async (event) => {
       expressionAttributeValues[':tags'] = tags;
     }
 
+    if (mediaUrls !== undefined) {
+      updateExpression += ', mediaUrls = :mediaUrls';
+      expressionAttributeValues[':mediaUrls'] = mediaUrls;
+    }
+
     if (status) {
       updateExpression += ', #status = :status';
       expressionAttributeNames['#status'] = 'status';
       expressionAttributeValues[':status'] = status;
 
-      // Si le status passe à "published", mettre à jour publishedAt
       if (status === 'published' && !existingPost.Item.publishedAt) {
         updateExpression += ', publishedAt = :publishedAt';
         expressionAttributeValues[':publishedAt'] = Date.now();
       }
     }
 
-    // Mettre à jour le post
     const updateCommand = new UpdateCommand({
       TableName: TABLE_NAME,
       Key: {
@@ -129,7 +120,6 @@ exports.handler = async (event) => {
 
     const result = await dynamodb.send(updateCommand);
 
-    // Réponse de succès
     return {
       statusCode: 200,
       headers: {
