@@ -1,22 +1,15 @@
+const { withCors } = require('../../middleware/cors');
+const { withRateLimit } = require('../../middleware/rateLimit');
 const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 const s3Client = new S3Client({ region: 'eu-west-1' });
 const BUCKET_NAME = process.env.MEDIA_BUCKET;
+const STAGE = process.env.STAGE || 'dev';
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-  'Access-Control-Allow-Methods': 'POST,OPTIONS',
-  'Content-Type': 'application/json'
-};
+const getSignedUrlsHandler = async (event) => {
+  console.log('Generate signed URLs request');
 
-/**
- * Générer des URLs pré-signées pour plusieurs médias
- * POST /media/signed-urls
- * Body: { mediaKeys: [string], expiresIn: number }
- */
-exports.handler = async (event) => {
   try {
     const body = JSON.parse(event.body);
     const { mediaKeys, expiresIn = 86400 } = body;
@@ -24,22 +17,18 @@ exports.handler = async (event) => {
     if (!mediaKeys || !Array.isArray(mediaKeys)) {
       return {
         statusCode: 400,
-        headers: CORS_HEADERS,
         body: JSON.stringify({
-          error: 'mediaKeys (array) est requis'
+          error: 'mediaKeys (array) is required'
         })
       };
     }
 
-    // Limiter l'expiration (max 7 jours)
-    const maxExpiration = 7 * 24 * 60 * 60; // 7 jours
+    const maxExpiration = 7 * 24 * 60 * 60;
     const validExpiresIn = Math.min(expiresIn, maxExpiration);
 
-    // Générer les URLs pré-signées
     const signedUrls = await Promise.all(
       mediaKeys.map(async (key) => {
         try {
-          // Extraire juste la clé S3 (sans le domaine si présent)
           const s3Key = key.includes('amazonaws.com') 
             ? key.split('.com/')[1] 
             : key;
@@ -71,7 +60,6 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 200,
-      headers: CORS_HEADERS,
       body: JSON.stringify({
         signedUrls: signedUrls
       })
@@ -82,11 +70,12 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 500,
-      headers: CORS_HEADERS,
       body: JSON.stringify({
-        error: 'Erreur lors de la génération des URLs signées',
+        error: 'Error generating signed URLs',
         details: error.message
       })
     };
   }
 };
+
+exports.handler = withCors(withRateLimit(getSignedUrlsHandler, 100, 60000), STAGE);

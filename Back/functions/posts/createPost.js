@@ -1,8 +1,9 @@
+const { withCors } = require('../../middleware/cors');
+const { withRateLimit } = require('../../middleware/rateLimit');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, PutCommand } = require('@aws-sdk/lib-dynamodb');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const crypto = require('crypto');
-const { withCors } = require('../../middleware/cors');
 
 const dynamoClient = new DynamoDBClient({ region: 'eu-west-1' });
 const dynamodb = DynamoDBDocumentClient.from(dynamoClient);
@@ -10,52 +11,37 @@ const s3Client = new S3Client({ region: 'eu-west-1' });
 
 const TABLE_NAME = process.env.POSTS_TABLE;
 const BUCKET_NAME = process.env.MEDIA_BUCKET;
+const STAGE = process.env.STAGE || 'dev';
 
-/**
- * Fonction pour uploader une image dans S3
- */
 const uploadImageToS3 = async (imageData, userEmail) => {
-  try {
-    const { fileName, fileType, fileData } = imageData;
-    
-    // Générer un nom de fichier unique
-    const fileExtension = fileName.split('.').pop();
-    const uniqueFileName = `${crypto.randomUUID()}.${fileExtension}`;
-    const s3Key = `media/${uniqueFileName}`;
+  const { fileName, fileType, fileData } = imageData;
+  
+  const fileExtension = fileName.split('.').pop();
+  const uniqueFileName = `${crypto.randomUUID()}.${fileExtension}`;
+  const s3Key = `media/${userEmail}/${uniqueFileName}`;
 
-    // Décoder le fichier base64
-    const buffer = Buffer.from(fileData, 'base64');
+  const buffer = Buffer.from(fileData, 'base64');
 
-    // Upload dans S3
-    const uploadCommand = new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: s3Key,
-      Body: buffer,
-      ContentType: fileType,
-      Metadata: {
-        originalFileName: fileName,
-        uploadedBy: userEmail,
-        uploadedAt: new Date().toISOString()
-      }
-    });
+  const uploadCommand = new PutObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: s3Key,
+    Body: buffer,
+    ContentType: fileType,
+    Metadata: {
+      originalFileName: fileName,
+      uploadedBy: userEmail,
+      uploadedAt: new Date().toISOString()
+    }
+  });
 
-    await s3Client.send(uploadCommand);
+  await s3Client.send(uploadCommand);
 
-    const imageUrl = `https://${BUCKET_NAME}.s3.eu-west-1.amazonaws.com/${s3Key}`;
-    return imageUrl;
-  } catch (error) {
-    console.error('Error uploading image to S3:', error);
-    throw error;
-  }
+  return `https://${BUCKET_NAME}.s3.eu-west-1.amazonaws.com/${s3Key}`;
 };
 
-/**
- * Fonction pour créer un nouveau post avec images
- * POST /posts
- * Body: { title, content, author, tags, status, images: [{ fileName, fileType, fileData, caption }] }
- * Headers: Authorization (Cognito token requis)
- */
-exports.handler = async (event) => {
+const createPostHandler = async (event) => {
+  console.log('Create post with images request');
+
   try {
     const body = JSON.parse(event.body);
     const { title, content, author, tags, status, images } = body;
@@ -63,32 +49,30 @@ exports.handler = async (event) => {
     if (!title || !content || !author) {
       return {
         statusCode: 400,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
-          error: 'Title, content et author sont requis'
+          error: 'Title, content and author are required'
         })
       };
     }
 
     let userEmail = 'anonymous@blogify.com';
     let userName = 'Anonymous';
-    let userGroups = 'guest';
 
     if (event.requestContext?.authorizer?.claims) {
       userEmail = event.requestContext.authorizer.claims.email || userEmail;
       userName = event.requestContext.authorizer.claims.name || userName;
-      userGroups = event.requestContext.authorizer.claims['cognito:groups'] || userGroups;
     }
 
+    console.log('User creating post:', { userEmail, userName });
 
     let mediaUrls = [];
     if (images && Array.isArray(images) && images.length > 0) {
+      console.log(`Uploading ${images.length} images...`);
       
       const uploadPromises = images.map(image => uploadImageToS3(image, userEmail));
       mediaUrls = await Promise.all(uploadPromises);
+      
+      console.log('All images uploaded:', mediaUrls);
     }
 
     const postId = crypto.randomUUID();
@@ -116,14 +100,12 @@ exports.handler = async (event) => {
     });
 
     await dynamodb.send(command);
+    console.log('Post created successfully with images:', postId);
+
     return {
       statusCode: 201,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify({
-        message: 'Post créé avec succès',
+        message: 'Post created successfully',
         post: post
       })
     };
@@ -133,14 +115,12 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify({
-        error: 'Erreur lors de la création du post',
+        error: 'Error creating post',
         details: error.message
       })
     };
   }
 };
+
+exports.handler = withCors(withRateLimit(createPostHandler, 20, 60000), STAGE);

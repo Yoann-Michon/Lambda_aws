@@ -1,35 +1,28 @@
+const { withCors } = require('../../middleware/cors');
+const { withRateLimit } = require('../../middleware/rateLimit');
 const { 
   CognitoIdentityProviderClient, 
   AdminUserGlobalSignOutCommand
 } = require('@aws-sdk/client-cognito-identity-provider');
 
 const cognitoClient = new CognitoIdentityProviderClient({ region: 'eu-west-1' });
+const STAGE = process.env.STAGE || 'dev';
 
-/**
- * Fonction pour déconnecter un utilisateur
- * POST /auth/logout
- * Headers: Authorization (Cognito token requis)
- */
-exports.handler = async (event) => {
+const logoutHandler = async (event) => {
+  console.log('Logout request');
 
   try {
-    // Récupérer l'email de l'utilisateur depuis le token
     const userEmail = event.requestContext.authorizer.claims.email;
 
     if (!userEmail) {
       return {
         statusCode: 400,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
-          error: 'Token invalide'
+          error: 'Invalid token'
         })
       };
     }
 
-    // Révoquer tous les tokens de l'utilisateur (global sign out)
     const signOutCommand = new AdminUserGlobalSignOutCommand({
       UserPoolId: process.env.USER_POOL_ID,
       Username: userEmail
@@ -37,15 +30,12 @@ exports.handler = async (event) => {
 
     await cognitoClient.send(signOutCommand);
 
-    // Réponse de succès
+    console.log('User logged out successfully:', userEmail);
+
     return {
       statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify({
-        message: 'Déconnexion réussie',
+        message: 'Logout successful',
         email: userEmail
       })
     };
@@ -55,14 +45,12 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify({
-        error: 'Erreur lors de la déconnexion',
+        error: 'Error during logout',
         details: error.message
       })
     };
   }
 };
+
+exports.handler = withCors(withRateLimit(logoutHandler, 20, 60000), STAGE);

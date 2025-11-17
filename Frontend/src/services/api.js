@@ -8,24 +8,19 @@ const getAuthHeaders = () => {
   const token = getAuthToken();
   return {
     'Content-Type': 'application/json',
-    ...(token && { 'Authorization': token }) // Retirer "Bearer " car Cognito n'en a pas besoin
+    ...(token && { 'Authorization': token })
   };
 };
 
 const handleResponse = async (response) => {
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Une erreur est survenue' }));
-    throw new Error(error.error || error.message || 'Erreur inconnue');
+    const error = await response.json().catch(() => ({ error: 'An error occurred' }));
+    throw new Error(error.error || error.message || 'Unknown error');
   }
   return response.json();
 };
 
-// ============================================
-// AUTH API
-// ============================================
-
 export const authAPI = {
-  // Inscription
   signup: async (email, password, name) => {
     const response = await fetch(`${API_BASE_URL}/auth/signup`, {
       method: 'POST',
@@ -35,7 +30,6 @@ export const authAPI = {
     return handleResponse(response);
   },
 
-  // Connexion
   login: async (email, password) => {
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
@@ -44,7 +38,6 @@ export const authAPI = {
     });
     const data = await handleResponse(response);
     
-    // Sauvegarder les tokens
     if (data.accessToken) {
       localStorage.setItem('accessToken', data.accessToken);
       localStorage.setItem('idToken', data.idToken);
@@ -55,49 +48,59 @@ export const authAPI = {
     return data;
   },
 
-  // Déconnexion complète (avec backend)
-  logout: async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/auth/logout`, {
-        method: 'POST',
-        headers: getAuthHeaders()
-      });
-      
-      // Ne pas lancer d'erreur si la déconnexion backend échoue
-      if (response.ok) {
-        await handleResponse(response);
-      }
-    } catch (error) {
-      console.error('Erreur lors de la déconnexion backend:', error);
-      // Continue quand même avec la déconnexion locale
-    } finally {
-      // Toujours supprimer les tokens locaux
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('idToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
-    }
+  logout: () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('idToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
   },
 
-  // Récupérer l'utilisateur courant depuis le localStorage
+  logoutBackend: async () => {
+    const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    
+    authAPI.logout();
+    
+    return handleResponse(response);
+  },
+
   getCurrentUser: () => {
     const userStr = localStorage.getItem('user');
     return userStr ? JSON.parse(userStr) : null;
   }
 };
 
-// ============================================
-// POSTS API
-// ============================================
-
-// Dans Frontend/src/services/api.js
-
 export const postsAPI = {
-  // Créer un nouveau post avec images
-  createPost: async (postData) => {
-    // postData contient : title, content, author, tags, status, images
-    // images est un tableau de { file: File, caption: string }
+  getAllPosts: async (status = null, limit = 20) => {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    if (limit) params.append('limit', limit);
     
+    const url = `${API_BASE_URL}/posts${params.toString() ? '?' + params.toString() : ''}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    return handleResponse(response);
+  },
+
+  getPost: async (postId, incrementViews = true) => {
+    const params = new URLSearchParams();
+    if (!incrementViews) {
+      params.append('skipView', 'true');
+    }
+    
+    const url = `${API_BASE_URL}/posts/${postId}${params.toString() ? '?' + params.toString() : ''}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    return handleResponse(response);
+  },
+
+  createPost: async (postData) => {
     const formattedData = {
       title: postData.title,
       content: postData.content,
@@ -107,7 +110,6 @@ export const postsAPI = {
       images: []
     };
 
-    // Convertir les images en base64
     if (postData.images && postData.images.length > 0) {
       const imagePromises = postData.images.map(async (imageData) => {
         const base64 = await new Promise((resolve, reject) => {
@@ -136,7 +138,6 @@ export const postsAPI = {
     return handleResponse(response);
   },
 
-  // Mettre à jour un post avec nouvelles images
   updatePost: async (postId, postData) => {
     const formattedData = {
       title: postData.title,
@@ -147,7 +148,6 @@ export const postsAPI = {
       images: []
     };
 
-    // Convertir les nouvelles images en base64
     if (postData.newImages && postData.newImages.length > 0) {
       const imagePromises = postData.newImages.map(async (imageData) => {
         const base64 = await new Promise((resolve, reject) => {
@@ -176,28 +176,6 @@ export const postsAPI = {
     return handleResponse(response);
   },
 
-  // Les autres méthodes restent identiques
-  getAllPosts: async (status = null, limit = 20) => {
-    const params = new URLSearchParams();
-    if (status) params.append('status', status);
-    if (limit) params.append('limit', limit);
-    
-    const url = `${API_BASE_URL}/posts${params.toString() ? '?' + params.toString() : ''}`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    return handleResponse(response);
-  },
-
-  getPost: async (postId) => {
-    const response = await fetch(`${API_BASE_URL}/posts/${postId}`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    return handleResponse(response);
-  },
-
   deletePost: async (postId) => {
     const response = await fetch(`${API_BASE_URL}/posts/${postId}`, {
       method: 'DELETE',
@@ -207,78 +185,7 @@ export const postsAPI = {
   }
 };
 
-// ============================================
-// ADMIN API
-// ============================================
-
-export const adminAPI = {
-  // Récupérer tous les utilisateurs
-  getAllUsers: async (limit = 60, paginationToken = null) => {
-    const params = new URLSearchParams();
-    if (limit) params.append('limit', limit);
-    if (paginationToken) params.append('paginationToken', paginationToken);
-    
-    const url = `${API_BASE_URL}/admin/users${params.toString() ? '?' + params.toString() : ''}`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: getAuthHeaders()
-    });
-    return handleResponse(response);
-  },
-
-  // Ajouter un utilisateur à un groupe
-  addUserToGroup: async (email, groupName) => {
-    const encodedEmail = encodeURIComponent(email);
-    const response = await fetch(`${API_BASE_URL}/admin/users/${encodedEmail}`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        action: 'addToGroup',
-        groupName: groupName
-      })
-    });
-    return handleResponse(response);
-  },
-
-  // Retirer un utilisateur d'un groupe
-  removeUserFromGroup: async (email, groupName) => {
-    const encodedEmail = encodeURIComponent(email);
-    const response = await fetch(`${API_BASE_URL}/admin/users/${encodedEmail}`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        action: 'removeFromGroup',
-        groupName: groupName
-      })
-    });
-    return handleResponse(response);
-  },
-
-  // Activer un utilisateur
-  enableUser: async (email) => {
-    const encodedEmail = encodeURIComponent(email);
-    const response = await fetch(`${API_BASE_URL}/admin/users/${encodedEmail}`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ action: 'enable' })
-    });
-    return handleResponse(response);
-  },
-
-  // Supprimer un utilisateur
-  deleteUser: async (email) => {
-    const encodedEmail = encodeURIComponent(email);
-    const response = await fetch(`${API_BASE_URL}/admin/users/${encodedEmail}`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ action: 'delete' })
-    });
-    return handleResponse(response);
-  }
-};
-
 export const mediaAPI = {
-  // Obtenir des URLs pré-signées
   getSignedUrls: async (mediaKeys, expiresIn = 86400) => {
     const response = await fetch(`${API_BASE_URL}/media/signed-urls`, {
       method: 'POST',
@@ -292,15 +199,72 @@ export const mediaAPI = {
   }
 };
 
-// ============================================
-// EXPORT PAR DÉFAUT
-// ============================================
+export const adminAPI = {
+  getAllUsers: async (limit = 60, paginationToken = null) => {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit);
+    if (paginationToken) params.append('paginationToken', paginationToken);
+    
+    const url = `${API_BASE_URL}/admin/users${params.toString() ? '?' + params.toString() : ''}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: getAuthHeaders()
+    });
+    return handleResponse(response);
+  },
+
+  addUserToGroup: async (email, groupName) => {
+    const encodedEmail = encodeURIComponent(email);
+    const response = await fetch(`${API_BASE_URL}/admin/users/${encodedEmail}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        action: 'addToGroup',
+        groupName: groupName
+      })
+    });
+    return handleResponse(response);
+  },
+
+  removeUserFromGroup: async (email, groupName) => {
+    const encodedEmail = encodeURIComponent(email);
+    const response = await fetch(`${API_BASE_URL}/admin/users/${encodedEmail}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        action: 'removeFromGroup',
+        groupName: groupName
+      })
+    });
+    return handleResponse(response);
+  },
+
+  enableUser: async (email) => {
+    const encodedEmail = encodeURIComponent(email);
+    const response = await fetch(`${API_BASE_URL}/admin/users/${encodedEmail}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ action: 'enable' })
+    });
+    return handleResponse(response);
+  },
+
+  deleteUser: async (email) => {
+    const encodedEmail = encodeURIComponent(email);
+    const response = await fetch(`${API_BASE_URL}/admin/users/${encodedEmail}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ action: 'delete' })
+    });
+    return handleResponse(response);
+  }
+};
 
 const api = {
   auth: authAPI,
   posts: postsAPI,
-  admin: adminAPI,
-  media:mediaAPI
+  media: mediaAPI,
+  admin: adminAPI
 };
 
 export default api;

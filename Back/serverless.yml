@@ -19,6 +19,7 @@ provider:
     MEDIA_BUCKET: ${self:service}-media-${self:provider.stage}
     USER_POOL_ID: !Ref CognitoUserPool
     USER_POOL_CLIENT_ID: !Ref CognitoUserPoolClient
+    STAGE: ${self:provider.stage}
   
   # Permissions IAM pour les Lambda functions
   iam:
@@ -40,6 +41,7 @@ provider:
         - Effect: Allow
           Action:
             - s3:PutObject
+            - s3:PutObjectAcl
             - s3:GetObject
             - s3:DeleteObject
           Resource:

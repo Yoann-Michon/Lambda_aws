@@ -1,3 +1,5 @@
+const { withCors } = require('../../middleware/cors');
+const { withRateLimit } = require('../../middleware/rateLimit');
 const { 
   CognitoIdentityProviderClient, 
   AdminInitiateAuthCommand,
@@ -6,33 +8,24 @@ const {
 } = require('@aws-sdk/client-cognito-identity-provider');
 
 const cognitoClient = new CognitoIdentityProviderClient({ region: 'eu-west-1' });
+const STAGE = process.env.STAGE || 'dev';
 
-/**
- * Fonction pour connecter un utilisateur
- * POST /auth/login
- * Body: { email, password }
- */
-exports.handler = async (event) => {
+const loginHandler = async (event) => {
+  console.log('Login request');
+
   try {
-    // Parser le body de la requête
     const body = JSON.parse(event.body);
     const { email, password } = body;
 
-    // Validation des données
     if (!email || !password) {
       return {
         statusCode: 400,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
-          error: 'Email et password sont requis'
+          error: 'Email and password are required'
         })
       };
     }
 
-    // Authentifier l'utilisateur
     const authCommand = new AdminInitiateAuthCommand({
       AuthFlow: 'ADMIN_NO_SRP_AUTH',
       UserPoolId: process.env.USER_POOL_ID,
@@ -44,8 +37,8 @@ exports.handler = async (event) => {
     });
 
     const authResult = await cognitoClient.send(authCommand);
+    console.log('Authentication successful');
 
-    // Récupérer les informations de l'utilisateur
     const getUserCommand = new AdminGetUserCommand({
       UserPoolId: process.env.USER_POOL_ID,
       Username: email
@@ -53,7 +46,6 @@ exports.handler = async (event) => {
 
     const userData = await cognitoClient.send(getUserCommand);
 
-    // Récupérer les groupes de l'utilisateur
     const getGroupsCommand = new AdminListGroupsForUserCommand({
       UserPoolId: process.env.USER_POOL_ID,
       Username: email
@@ -62,21 +54,15 @@ exports.handler = async (event) => {
     const groupsData = await cognitoClient.send(getGroupsCommand);
     const userGroups = groupsData.Groups.map(group => group.GroupName);
 
-    // Extraire les attributs de l'utilisateur
     const userAttributes = {};
     userData.UserAttributes.forEach(attr => {
       userAttributes[attr.Name] = attr.Value;
     });
 
-    // Réponse de succès avec les tokens
     return {
       statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify({
-        message: 'Connexion réussie',
+        message: 'Login successful',
         accessToken: authResult.AuthenticationResult.AccessToken,
         idToken: authResult.AuthenticationResult.IdToken,
         refreshToken: authResult.AuthenticationResult.RefreshToken,
@@ -93,26 +79,22 @@ exports.handler = async (event) => {
   } catch (error) {
     console.error('Login error:', error);
 
-    let errorMessage = 'Erreur lors de la connexion';
+    let errorMessage = 'Error during login';
     let statusCode = 500;
 
     if (error.name === 'NotAuthorizedException') {
-      errorMessage = 'Email ou mot de passe incorrect';
+      errorMessage = 'Incorrect email or password';
       statusCode = 401;
     } else if (error.name === 'UserNotFoundException') {
-      errorMessage = 'Utilisateur non trouvé';
+      errorMessage = 'User not found';
       statusCode = 404;
     } else if (error.name === 'UserNotConfirmedException') {
-      errorMessage = 'Compte non confirmé';
+      errorMessage = 'Account not confirmed';
       statusCode = 403;
     }
 
     return {
       statusCode: statusCode,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify({
         error: errorMessage,
         details: error.message
@@ -120,3 +102,5 @@ exports.handler = async (event) => {
     };
   }
 };
+
+exports.handler = withCors(withRateLimit(loginHandler, 10, 60000), STAGE);

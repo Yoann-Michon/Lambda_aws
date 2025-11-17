@@ -1,21 +1,20 @@
+const { withCors } = require('../../middleware/cors');
+const { withRateLimit } = require('../../middleware/rateLimit');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, ScanCommand } = require('@aws-sdk/lib-dynamodb');
 
 const client = new DynamoDBClient({ region: 'eu-west-1' });
 const dynamodb = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.POSTS_TABLE;
+const STAGE = process.env.STAGE || 'dev';
 
-/**
- * Fonction pour récupérer tous les posts
- * GET /posts?status=published&limit=10
- * Accessible sans authentification (public)
- */
-exports.handler = async (event) => {
+const getAllPostsHandler = async (event) => {
+  console.log('Get all posts request');
 
   try {
     const queryParams = event.queryStringParameters || {};
-    const status = queryParams.status; 
-    const limit = parseInt(queryParams.limit) || 20; 
+    const status = queryParams.status;
+    const limit = parseInt(queryParams.limit) || 20;
 
     let params = {
       TableName: TABLE_NAME,
@@ -39,10 +38,6 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify({
         posts: sortedPosts,
         count: sortedPosts.length,
@@ -55,14 +50,12 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify({
-        error: 'Erreur lors de la récupération des posts',
+        error: 'Error retrieving posts',
         details: error.message
       })
     };
   }
 };
+
+exports.handler = withCors(withRateLimit(getAllPostsHandler, 100, 60000), STAGE);

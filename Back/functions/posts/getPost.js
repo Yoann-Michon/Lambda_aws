@@ -1,32 +1,29 @@
+const { withCors } = require('../../middleware/cors');
+const { withRateLimit } = require('../../middleware/rateLimit');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, GetCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
 
 const client = new DynamoDBClient({ region: 'eu-west-1' });
 const dynamodb = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.POSTS_TABLE;
+const STAGE = process.env.STAGE || 'dev';
 
-/**
- * Fonction pour récupérer un post par son ID
- * GET /posts/{id}
- * Accessible sans authentification (public)
- */
-exports.handler = async (event) => {
+const getPostHandler = async (event) => {
+  console.log('Get post request');
 
   try {
-    const postId = event.pathParameters.id;
+    const postId = event.pathParameters?.id;
 
     if (!postId) {
       return {
         statusCode: 400,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
-          error: 'ID du post requis'
+          error: 'Post ID required'
         })
       };
     }
+
+    const skipView = event.queryStringParameters?.skipView === 'true';
 
     const getCommand = new GetCommand({
       TableName: TABLE_NAME,
@@ -40,42 +37,43 @@ exports.handler = async (event) => {
     if (!result.Item) {
       return {
         statusCode: 404,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
-          error: 'Post non trouvé'
+          error: 'Post not found'
         })
       };
     }
 
-    const updateCommand = new UpdateCommand({
-      TableName: TABLE_NAME,
-      Key: {
-        postId: postId
-      },
-      UpdateExpression: 'SET #views = if_not_exists(#views, :zero) + :increment',
-      ExpressionAttributeNames: {
-        '#views': 'views'
-      },
-      ExpressionAttributeValues: {
-        ':increment': 1,
-        ':zero': 0
-      },
-      ReturnValues: 'ALL_NEW'
-    });
+    let post = result.Item;
 
-    const updatedResult = await dynamodb.send(updateCommand);
+    if (!skipView && result.Item.status === 'published') {
+      console.log('Incrementing view count for post:', postId);
+      
+      const updateCommand = new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          postId: postId
+        },
+        UpdateExpression: 'SET #views = if_not_exists(#views, :zero) + :increment',
+        ExpressionAttributeNames: {
+          '#views': 'views'
+        },
+        ExpressionAttributeValues: {
+          ':increment': 1,
+          ':zero': 0
+        },
+        ReturnValues: 'ALL_NEW'
+      });
+
+      const updatedResult = await dynamodb.send(updateCommand);
+      post = updatedResult.Attributes;
+    } else {
+      console.log('Skipping view increment');
+    }
 
     return {
       statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify({
-        post: updatedResult.Attributes
+        post: post
       })
     };
 
@@ -84,14 +82,12 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify({
-        error: 'Erreur lors de la récupération du post',
+        error: 'Error retrieving post',
         details: error.message
       })
     };
   }
 };
+
+exports.handler = withCors(withRateLimit(getPostHandler, 100, 60000), STAGE);

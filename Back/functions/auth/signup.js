@@ -1,3 +1,5 @@
+const { withCors } = require('../../middleware/cors');
+const { withRateLimit } = require('../../middleware/rateLimit');
 const { 
   CognitoIdentityProviderClient, 
   AdminCreateUserCommand,
@@ -6,13 +8,11 @@ const {
 } = require('@aws-sdk/client-cognito-identity-provider');
 
 const cognitoClient = new CognitoIdentityProviderClient({ region: 'eu-west-1' });
+const STAGE = process.env.STAGE || 'dev';
 
-/**
- * Fonction pour inscrire un nouvel utilisateur
- * POST /auth/signup
- * Body: { email, password, name }
- */
-exports.handler = async (event) => {
+const signupHandler = async (event) => {
+  console.log('Signup request');
+
   try {
     const body = JSON.parse(event.body);
     const { email, password, name } = body;
@@ -20,12 +20,8 @@ exports.handler = async (event) => {
     if (!email || !password || !name) {
       return {
         statusCode: 400,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
-          error: 'Email, password et name sont requis'
+          error: 'Email, password and name are required'
         })
       };
     }
@@ -43,6 +39,7 @@ exports.handler = async (event) => {
     });
 
     const createUserResult = await cognitoClient.send(createUserCommand);
+    console.log('User created:', createUserResult);
 
     const setPasswordCommand = new AdminSetUserPasswordCommand({
       UserPoolId: process.env.USER_POOL_ID,
@@ -63,39 +60,31 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 201,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify({
-        message: 'Utilisateur créé avec succès',
+        message: 'User created successfully',
         userId: createUserResult.User.Username,
         email: email,
         name: name,
-        group: 'guest'
+        group: 'editor'
       })
     };
 
   } catch (error) {
     console.error('Signup error:', error);
 
-    let errorMessage = 'Erreur lors de la création du compte';
+    let errorMessage = 'Error creating account';
     let statusCode = 500;
 
     if (error.name === 'UsernameExistsException') {
-      errorMessage = 'Cet email est déjà utilisé';
+      errorMessage = 'This email is already in use';
       statusCode = 409;
     } else if (error.name === 'InvalidPasswordException') {
-      errorMessage = 'Le mot de passe ne respecte pas les exigences';
+      errorMessage = 'Password does not meet requirements';
       statusCode = 400;
     }
 
     return {
       statusCode: statusCode,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify({
         error: errorMessage,
         details: error.message
@@ -103,3 +92,5 @@ exports.handler = async (event) => {
     };
   }
 };
+
+exports.handler = withCors(withRateLimit(signupHandler, 5, 60000), STAGE);

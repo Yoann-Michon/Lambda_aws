@@ -1,29 +1,24 @@
+const { withCors } = require('../../middleware/cors');
+const { withRateLimit } = require('../../middleware/rateLimit');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, GetCommand, DeleteCommand } = require('@aws-sdk/lib-dynamodb');
 
 const client = new DynamoDBClient({ region: 'eu-west-1' });
 const dynamodb = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.POSTS_TABLE;
+const STAGE = process.env.STAGE || 'dev';
 
-/**
- * Fonction pour supprimer un post
- * DELETE /posts/{id}
- * Headers: Authorization (Cognito token requis)
- */
-exports.handler = async (event) => {
+const deletePostHandler = async (event) => {
+  console.log('Delete post request');
 
   try {
-    const postId = event.pathParameters.id;
+    const postId = event.pathParameters?.id;
 
     if (!postId) {
       return {
         statusCode: 400,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
-          error: 'ID du post requis'
+          error: 'Post ID required'
         })
       };
     }
@@ -43,12 +38,8 @@ exports.handler = async (event) => {
     if (!existingPost.Item) {
       return {
         statusCode: 404,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
-          error: 'Post non trouvé'
+          error: 'Post not found'
         })
       };
     }
@@ -59,12 +50,8 @@ exports.handler = async (event) => {
     if (!isOwner && !isAdmin) {
       return {
         statusCode: 403,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
-          error: 'Non autorisé à supprimer ce post'
+          error: 'Not authorized to delete this post'
         })
       };
     }
@@ -78,14 +65,12 @@ exports.handler = async (event) => {
 
     await dynamodb.send(deleteCommand);
 
+    console.log('Post deleted successfully:', postId);
+
     return {
       statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify({
-        message: 'Post supprimé avec succès',
+        message: 'Post deleted successfully',
         postId: postId
       })
     };
@@ -95,14 +80,12 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify({
-        error: 'Erreur lors de la suppression du post',
+        error: 'Error deleting post',
         details: error.message
       })
     };
   }
 };
+
+exports.handler = withCors(withRateLimit(deletePostHandler, 20, 60000), STAGE);
