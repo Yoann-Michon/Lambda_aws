@@ -1,132 +1,176 @@
+const { withCors } = require('../../middleware/cors');
+const { withRateLimit } = require('../../middleware/rateLimit');
 const { 
   CognitoIdentityProviderClient, 
-  ListUsersCommand,
+  AdminAddUserToGroupCommand,
+  AdminRemoveUserFromGroupCommand,
+  AdminEnableUserCommand,
+  AdminDeleteUserCommand,
   AdminListGroupsForUserCommand
 } = require('@aws-sdk/client-cognito-identity-provider');
 
 const cognitoClient = new CognitoIdentityProviderClient({ region: 'eu-west-1' });
+const STAGE = process.env.STAGE || 'dev';
 
-/**
- * Fonction pour récupérer tous les utilisateurs (Admin uniquement)
- * GET /admin/users?limit=60
- * Headers: Authorization (Cognito token requis - Admin uniquement)
- */
-exports.handler = async (event) => {
+const manageUserHandler = async (event) => {
+  console.log('Manage user request');
+
   try {
-    // Récupérer les informations de l'utilisateur
     const userGroups = event.requestContext.authorizer.claims['cognito:groups'] || '';
-    const userEmail = event.requestContext.authorizer.claims.email;
+    const adminEmail = event.requestContext.authorizer.claims.email;
 
-    // Vérifier que l'utilisateur est admin
     if (!userGroups.includes('admin')) {
       return {
         statusCode: 403,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
-          error: 'Accès refusé. Réservé aux administrateurs uniquement.'
+          error: 'Access denied. Admin only.'
         })
       };
     }
 
-    // Récupérer les paramètres de requête
-    const queryParams = event.queryStringParameters || {};
-    const limit = parseInt(queryParams.limit) || 60; // Maximum 60 par défaut
-    const paginationToken = queryParams.paginationToken || null;
+    const targetEmail = decodeURIComponent(event.pathParameters.email);
+    const body = JSON.parse(event.body);
+    const { action, groupName } = body;
 
-    // Lister les utilisateurs du User Pool
-    const listUsersCommand = new ListUsersCommand({
-      UserPoolId: process.env.USER_POOL_ID,
-      Limit: Math.min(limit, 60), // AWS limite à 60 max
-      ...(paginationToken && { PaginationToken: paginationToken })
-    });
+    console.log('Admin action:', { adminEmail, targetEmail, action, groupName });
 
-    const result = await cognitoClient.send(listUsersCommand);
+    if (targetEmail === adminEmail && (action === 'delete' || action === 'removeFromGroup')) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({
+          error: 'Cannot perform this action on your own account'
+        })
+      };
+    }
 
-    // Enrichir les données utilisateur avec leurs groupes
-    const usersWithGroups = await Promise.all(
-      result.Users.map(async (user) => {
-        try {
-          // Récupérer les groupes de l'utilisateur
-          const getGroupsCommand = new AdminListGroupsForUserCommand({
-            UserPoolId: process.env.USER_POOL_ID,
-            Username: user.Username
-          });
-
-          const groupsData = await cognitoClient.send(getGroupsCommand);
-          const userGroups = groupsData.Groups.map(group => group.GroupName);
-
-          // Extraire les attributs de l'utilisateur
-          const attributes = {};
-          user.Attributes.forEach(attr => {
-            attributes[attr.Name] = attr.Value;
-          });
-
+    switch (action) {
+      case 'addToGroup': {
+        if (!groupName) {
           return {
-            username: user.Username,
-            email: attributes.email || 'N/A',
-            name: attributes.name || 'N/A',
-            emailVerified: attributes.email_verified === 'true',
-            groups: userGroups,
-            status: user.UserStatus,
-            enabled: user.Enabled,
-            createdAt: user.UserCreateDate,
-            lastModified: user.UserLastModifiedDate
-          };
-        } catch (error) {
-          console.error(`Error getting groups for user ${user.Username}:`, error);
-          
-          // Retourner les données de base même en cas d'erreur
-          const attributes = {};
-          user.Attributes.forEach(attr => {
-            attributes[attr.Name] = attr.Value;
-          });
-
-          return {
-            username: user.Username,
-            email: attributes.email || 'N/A',
-            name: attributes.name || 'N/A',
-            emailVerified: attributes.email_verified === 'true',
-            groups: [],
-            status: user.UserStatus,
-            enabled: user.Enabled,
-            createdAt: user.UserCreateDate,
-            lastModified: user.UserLastModifiedDate
+            statusCode: 400,
+            body: JSON.stringify({
+              error: 'groupName is required'
+            })
           };
         }
-      })
-    );
 
-    // Réponse de succès
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        users: usersWithGroups,
-        count: usersWithGroups.length,
-        paginationToken: result.PaginationToken || null,
-        hasMore: !!result.PaginationToken
-      })
-    };
+        const getGroupsCommand = new AdminListGroupsForUserCommand({
+          UserPoolId: process.env.USER_POOL_ID,
+          Username: targetEmail
+        });
+
+        const currentGroups = await cognitoClient.send(getGroupsCommand);
+        const currentGroupNames = currentGroups.Groups.map(g => g.GroupName);
+
+        if (currentGroupNames.includes(groupName)) {
+          return {
+            statusCode: 400,
+            body: JSON.stringify({
+              error: 'User is already in this group'
+            })
+          };
+        }
+
+        const addCommand = new AdminAddUserToGroupCommand({
+          UserPoolId: process.env.USER_POOL_ID,
+          Username: targetEmail,
+          GroupName: groupName
+        });
+
+        await cognitoClient.send(addCommand);
+
+        return {
+          statusCode: 200,
+          body: JSON.stringify({
+            message: 'User added to group successfully',
+            email: targetEmail,
+            groupName: groupName
+          })
+        };
+      }
+
+      case 'removeFromGroup': {
+        if (!groupName) {
+          return {
+            statusCode: 400,
+            body: JSON.stringify({
+              error: 'groupName is required'
+            })
+          };
+        }
+
+        const removeCommand = new AdminRemoveUserFromGroupCommand({
+          UserPoolId: process.env.USER_POOL_ID,
+          Username: targetEmail,
+          GroupName: groupName
+        });
+
+        await cognitoClient.send(removeCommand);
+
+        return {
+          statusCode: 200,
+          body: JSON.stringify({
+            message: 'User removed from group successfully',
+            email: targetEmail,
+            groupName: groupName
+          })
+        };
+      }
+
+      case 'enable': {
+        const enableCommand = new AdminEnableUserCommand({
+          UserPoolId: process.env.USER_POOL_ID,
+          Username: targetEmail
+        });
+
+        await cognitoClient.send(enableCommand);
+
+        return {
+          statusCode: 200,
+          body: JSON.stringify({
+            message: 'User enabled successfully',
+            email: targetEmail
+          })
+        };
+      }
+
+      case 'delete': {
+        const deleteCommand = new AdminDeleteUserCommand({
+          UserPoolId: process.env.USER_POOL_ID,
+          Username: targetEmail
+        });
+
+        await cognitoClient.send(deleteCommand);
+
+        return {
+          statusCode: 200,
+          body: JSON.stringify({
+            message: 'User deleted successfully',
+            email: targetEmail
+          })
+        };
+      }
+
+      default:
+        return {
+          statusCode: 400,
+          body: JSON.stringify({
+            error: 'Invalid action. Must be: addToGroup, removeFromGroup, enable, or delete'
+          })
+        };
+    }
 
   } catch (error) {
-    console.error('Get users error:', error);
+    console.error('Manage user error:', error);
 
     return {
       statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify({
-        error: 'Erreur lors de la récupération des utilisateurs',
+        error: 'Error managing user',
         details: error.message
       })
     };
   }
 };
+
+exports.handler = withCors(withRateLimit(manageUserHandler, 20, 60000), STAGE);

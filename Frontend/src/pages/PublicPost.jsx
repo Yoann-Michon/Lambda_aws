@@ -123,14 +123,6 @@ const PublicPost = () => {
         <div className="flex justify-center mb-6">
           <SearchBar onSearch={handleSearch} />
         </div>
-
-        {searchQuery && (
-          <div className="text-center">
-            <p className="text-gray-600 dark:text-gray-400">
-              {displayedPosts.length} résultat{displayedPosts.length !== 1 ? 's' : ''} pour "{searchQuery}"
-            </p>
-          </div>
-        )}
       </div>
 
       {error && (

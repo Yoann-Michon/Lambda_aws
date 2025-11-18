@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 
-const SearchBar = ({ onSearch, placeholder = "Rechercher des articles..." }) => {
+const SearchBar = ({ onSearch, placeholder = "Rechercher des articles...", delay = 500 }) => {
   const [query, setQuery] = useState('');
+  const debouncedQuery = useDebounce(query, delay);
 
   useEffect(() => {
-    if (query.length === 0 || query.length >= 3) {
-      onSearch(query);
+    if (debouncedQuery.length === 0 || debouncedQuery.length >= 3) {
+      onSearch(debouncedQuery);
     }
-  }, [query, onSearch]);
+  }, [debouncedQuery, onSearch]);
 
   const handleClear = () => {
     setQuery('');
@@ -63,7 +64,24 @@ const SearchBar = ({ onSearch, placeholder = "Rechercher des articles..." }) => 
 
 SearchBar.propTypes = {
   onSearch: PropTypes.func.isRequired,
-  placeholder: PropTypes.string
+  placeholder: PropTypes.string,
+  delay: PropTypes.number
+};
+
+const useDebounce = (value, delay = 500) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
 };
 
 export default SearchBar;

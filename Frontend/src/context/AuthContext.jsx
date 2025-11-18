@@ -34,7 +34,7 @@ export const AuthProvider = ({ children }) => {
   }, [login]);
 
   const logout = useCallback(async () => {
-    await api.auth.logout();
+    api.auth.logout();
     setCurrentUser(null);
   }, []);
 
@@ -50,7 +50,6 @@ export const AuthProvider = ({ children }) => {
     return currentUser?.groups?.includes('guest');
   }, [currentUser]);
 
-  // Vérifier si l'utilisateur peut créer/éditer des posts (editor ou admin)
   const canCreatePosts = useCallback(() => {
     return isEditor() || isAdmin();
   }, [isEditor, isAdmin]);

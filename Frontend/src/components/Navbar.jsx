@@ -45,7 +45,7 @@ const Navbar = () => {
                     to="/editor"
                     className="text-gray-700 dark:text-gray-300 hover:text-blue-600 transition-colors"
                   >
-                    Nouvel article
+                    Editeur
                   </Link>
                 )}
                 
