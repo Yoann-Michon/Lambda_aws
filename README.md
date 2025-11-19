@@ -378,7 +378,8 @@ Back/
 │   │   ├── updatePost.js
 │   │   └── deletePost.js
 │   ├── media/                # Media handling
-│   │   └── getSignedUrls.js
+│   │   ├── uploadMedia.js             
+│   │   └── getMediaUrl.js
 │   └── admin/                # Admin operations
 │       ├── getUsers.js
 │       └── manageUser.js
