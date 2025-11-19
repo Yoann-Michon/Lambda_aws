@@ -13,7 +13,7 @@
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 ### 1. [Project Overview](#1-project-overview)
    - [What is Blogify?](#what-is-blogify)
@@ -502,6 +502,43 @@ Back/
 | Write Operations | 20-30/min |
 | Admin | 20-30/min |
 
+
+#### Exemple:
+- Requête
+```
+POST https://your-api-id.execute-api.eu-west-1.amazonaws.com/dev/posts
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+
+{
+  "title": "Getting Started with Serverless Architecture",
+  "content": "Serverless architecture allows developers to build applications without managing servers. In this post, we'll explore AWS Lambda, API Gateway, and DynamoDB to create a scalable blogging platform.",
+  "author": "John Doe",
+  "tags": ["serverless", "aws", "tutorial"],
+  "status": "published"
+}
+```
+- Réponse 201
+```
+{
+  "message": "Post créé avec succès",
+  "post": {
+    "postId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "title": "Getting Started with Serverless Architecture",
+    "content": "Serverless architecture allows developers to build applications without managing servers. In this post, we'll explore AWS Lambda, API Gateway, and DynamoDB to create a scalable blogging platform.",
+    "author": "John Doe",
+    "authorEmail": "john.doe@example.com",
+    "authorName": "John Doe",
+    "tags": ["serverless", "aws", "tutorial"],
+    "status": "published",
+    "mediaUrls": [],
+    "createdAt": 1699564800000,
+    "updatedAt": 1699564800000,
+    "publishedAt": 1699564800000,
+    "views": 0
+  }
+}
+```
 ---
 
 ## 7. Backend Architecture
