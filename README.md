@@ -93,7 +93,7 @@ Blogify is a **modern, serverless headless blogging platform** designed for cont
 
 - **Fully Serverless**: No servers to manage, automatic scaling
 - **Enterprise Security**: CORS protection, rate limiting, role-based access
-- **Cost-Effective**: Pay only for what you use (~$15/month for 1000 users)
+- **Cost-Effective**: Pay only for what you use
 - **High Performance**: Sub-200ms response times
 - **Modern UI**: Responsive React interface with dark mode
 - **Smart Search**: Real-time search with intelligent ranking
