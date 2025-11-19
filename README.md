@@ -378,8 +378,7 @@ Back/
 │   │   ├── updatePost.js
 │   │   └── deletePost.js
 │   ├── media/                # Media handling
-│   │   ├── uploadMedia.js             
-│   │   └── getMediaUrl.js
+│   │   └── getSignedUrls.js
 │   └── admin/                # Admin operations
 │       ├── getUsers.js
 │       └── manageUser.js
@@ -747,5 +746,4 @@ VITE_API_URL=https://prod-api-id.execute-api.eu-west-1.amazonaws.com/prod
 - **Yoann MICHON**
 - **Abdoul Waris KONATE** 
 - **Achraf ELHARFI** 
-
 ---
