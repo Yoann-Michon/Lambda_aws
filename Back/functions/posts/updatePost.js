@@ -27,6 +27,7 @@ const uploadImageToS3 = async (imageData, userEmail) => {
     Key: s3Key,
     Body: buffer,
     ContentType: fileType,
+    ServerSideEncryption: 'AES256',
     Metadata: {
       originalFileName: fileName,
       uploadedBy: userEmail,
@@ -36,7 +37,7 @@ const uploadImageToS3 = async (imageData, userEmail) => {
 
   await s3Client.send(uploadCommand);
 
-  return `https://${BUCKET_NAME}.s3.eu-west-1.amazonaws.com/${s3Key}`;
+  return s3Key;
 };
 
 const updatePostHandler = async (event) => {
